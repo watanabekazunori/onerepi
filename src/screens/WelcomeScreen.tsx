@@ -10,7 +10,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,8 +17,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Brand Colors
 const brandColors = {
@@ -38,8 +35,8 @@ type WelcomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 };
 
-// App Icon Logo (右下のデザイン - どーんと大きく)
-const AppIconLogo = ({ size = 160 }: { size?: number }) => (
+// App Icon Logo (固定サイズ)
+const AppIconLogo = ({ size = 140 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 100 100">
     {/* Rounded square background */}
     <Rect x="0" y="0" width="100" height="100" rx="24" fill={brandColors.primary} />
@@ -47,15 +44,15 @@ const AppIconLogo = ({ size = 160 }: { size?: number }) => (
     {/* Frying pan */}
     <G transform="translate(12, 18)">
       {/* Pan body (circle) - outer */}
-      <Circle cx="32" cy="35" r="30" fill="none" stroke={brandColors.white} strokeWidth="4" />
+      <Circle cx="32" cy="35" r="28" fill="none" stroke={brandColors.white} strokeWidth="4" />
       {/* Pan body (circle) - inner */}
-      <Circle cx="32" cy="35" r="20" fill="none" stroke={brandColors.white} strokeWidth="2" opacity="0.7" />
+      <Circle cx="32" cy="35" r="18" fill="none" stroke={brandColors.white} strokeWidth="2" opacity="0.6" />
 
       {/* Handle */}
       <Path
-        d="M62 35 L82 27"
+        d="M60 35 L78 28"
         stroke={brandColors.white}
-        strokeWidth="7"
+        strokeWidth="6"
         strokeLinecap="round"
       />
     </G>
@@ -64,7 +61,7 @@ const AppIconLogo = ({ size = 160 }: { size?: number }) => (
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -108,7 +105,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
       <SafeAreaView style={styles.safeArea}>
         {/* Main Content */}
         <View style={styles.content}>
-          {/* Logo Section - どーん！ */}
+          {/* Logo Section */}
           <Animated.View
             style={[
               styles.logoSection,
@@ -118,7 +115,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
               },
             ]}
           >
-            <AppIconLogo size={SCREEN_WIDTH * 0.45} />
+            <AppIconLogo size={140} />
 
             {/* Text Logo */}
             <View style={styles.textLogoContainer}>
@@ -128,7 +125,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 
             {/* Tagline */}
             <Text style={styles.tagline}>
-              毎日の献立を、{'\n'}もっとかんたんに
+              毎日の献立を、もっとかんたんに
             </Text>
           </Animated.View>
         </View>
@@ -197,28 +194,28 @@ const styles = StyleSheet.create({
   },
   textLogoContainer: {
     alignItems: 'center',
-    marginTop: 28,
+    marginTop: 24,
   },
   logoText: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '800',
     color: brandColors.primary,
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
   logoSubtext: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: brandColors.primary,
-    marginTop: 6,
-    letterSpacing: 6,
+    marginTop: 4,
+    letterSpacing: 4,
   },
   tagline: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '500',
     color: brandColors.textSecondary,
     textAlign: 'center',
-    marginTop: 24,
-    lineHeight: 28,
+    marginTop: 20,
+    lineHeight: 24,
   },
   bottomContainer: {
     paddingHorizontal: 24,
@@ -227,42 +224,40 @@ const styles = StyleSheet.create({
   },
   signUpButton: {
     backgroundColor: brandColors.primary,
-    paddingVertical: 18,
-    borderRadius: 16,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 12,
     shadowColor: brandColors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   signUpButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: brandColors.white,
-    letterSpacing: 0.5,
   },
   loginButton: {
     backgroundColor: brandColors.white,
-    paddingVertical: 18,
-    borderRadius: 16,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: brandColors.primary,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   loginButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: brandColors.primary,
-    letterSpacing: 0.5,
   },
   termsText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '400',
     color: brandColors.textMuted,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
 });

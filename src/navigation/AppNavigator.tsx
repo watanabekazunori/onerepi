@@ -4,7 +4,7 @@
 // ============================================
 
 import React from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -13,8 +13,8 @@ import {
   ShoppingCart,
   BookOpen,
   User,
-  Sparkles,
 } from 'lucide-react-native';
+import { MobileContainer } from '../components/ui';
 
 import {
   WelcomeScreen,
@@ -98,8 +98,9 @@ export const AppNavigator = () => {
   const hasCompletedOnboarding = false;
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
+    <MobileContainer>
+      <NavigationContainer>
+        <Stack.Navigator
         initialRouteName={hasCompletedOnboarding ? 'MainTabs' : 'Welcome'}
         screenOptions={{
           headerShown: false,
@@ -225,8 +226,9 @@ export const AppNavigator = () => {
             presentation: 'modal',
           }}
         />
-      </Stack.Navigator>
-    </NavigationContainer>
+        </Stack.Navigator>
+      </NavigationContainer>
+    </MobileContainer>
   );
 };
 

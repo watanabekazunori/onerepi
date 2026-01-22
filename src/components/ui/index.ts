@@ -17,3 +17,4 @@ export { TimeBadge } from './TimeBadge';
 export { NutritionChart } from './NutritionChart';
 export { EmptyState } from './EmptyState';
 export { RecipeCard } from './RecipeCard';
+export { MobileContainer } from './MobileContainer';
