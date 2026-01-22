@@ -33,7 +33,7 @@ import {
   findRecipesWithSharedIngredients,
 } from '../lib/mockData';
 import { ChatBubble } from '../components/chat/ChatBubble';
-import { saveWeeklyPlan, StoredWeeklyPlan } from '../lib/storage';
+import { saveWeeklyPlan, StoredWeeklyPlan, getUserPreferences, UserPreferences } from '../lib/storage';
 import { colors, spacing, borderRadius } from '../lib/theme';
 import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
 
@@ -94,11 +94,15 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   const [sideDishPlan, setSideDishPlan] = useState<SideDishPlan>({});
   const [sharedIngredients, setSharedIngredients] = useState<string[]>([]);
 
-  const flatListRef = useRef<FlatList>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // ユーザー設定（苦手食材・アレルギー）
+  const [userPrefs, setUserPrefs] = useState<UserPreferences | null>(null);
 
-  // Initialize welcome messages
+  const flatListRef = useRef<FlatList>(null);
+  const fadeAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
+
+  // Initialize welcome messages and load user preferences
   useEffect(() => {
+    loadUserPreferences();
     showWelcomeMessages();
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -106,6 +110,12 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // ユーザー設定を読み込み
+  const loadUserPreferences = async () => {
+    const prefs = await getUserPreferences();
+    setUserPrefs(prefs);
+  };
 
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -280,6 +290,58 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
 
     // レシピプールを作成
     let recipePool = [...MOCK_RECIPES];
+
+    // 【重要】苦手食材・アレルギーを除外
+    if (userPrefs) {
+      const dislikedKeywords = userPrefs.dislikes || [];
+      const allergyKeywords = userPrefs.allergies || [];
+      const excludeKeywords = [...dislikedKeywords, ...allergyKeywords];
+
+      if (excludeKeywords.length > 0) {
+        recipePool = recipePool.filter(recipe => {
+          // レシピの食材をチェック
+          const hasExcludedIngredient = recipe.ingredients.some(ing => {
+            const ingName = ing.name.toLowerCase();
+            return excludeKeywords.some(keyword => {
+              const kw = keyword.toLowerCase();
+              // カテゴリチェック
+              if (kw === 'seafood' || kw === '魚介類') {
+                return ing.category === 'protein' && (
+                  ingName.includes('魚') || ingName.includes('えび') ||
+                  ingName.includes('いか') || ingName.includes('貝') ||
+                  ingName.includes('鮭') || ingName.includes('さば') ||
+                  ingName.includes('鯖') || ingName.includes('たこ') ||
+                  ingName.includes('シーフード')
+                );
+              }
+              if (kw === 'meat' || kw === '肉類') {
+                return ing.category === 'protein' && (
+                  ingName.includes('肉') || ingName.includes('ベーコン') ||
+                  ingName.includes('ハム') || ingName.includes('ソーセージ')
+                );
+              }
+              if (kw === 'veggie' || kw === '野菜系') {
+                return ing.category === 'vegetable';
+              }
+              if (kw === 'egg' || kw === '卵') {
+                return ingName.includes('卵') || ingName.includes('たまご');
+              }
+              if (kw === 'milk' || kw === '乳製品') {
+                return ingName.includes('牛乳') || ingName.includes('チーズ') ||
+                       ingName.includes('生クリーム') || ingName.includes('ヨーグルト');
+              }
+              if (kw === 'wheat' || kw === '小麦') {
+                return ingName.includes('小麦') || ingName.includes('パン粉') ||
+                       ingName.includes('うどん') || ingName.includes('パスタ');
+              }
+              // 具体的な食材名のマッチング
+              return ingName.includes(kw);
+            });
+          });
+          return !hasExcludedIngredient;
+        });
+      }
+    }
 
     // カテゴリでフィルター
     const categoryFilter = getCategoryFilter();
