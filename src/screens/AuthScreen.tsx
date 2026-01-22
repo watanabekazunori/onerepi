@@ -23,6 +23,8 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
 import { setOnboardingCompleted } from '../lib/storage';
+import { signInWithEmail, signUpWithEmail } from '../lib/supabase';
+import { supabaseService } from '../lib/supabase-service';
 
 // Brand Colors
 const brandColors = {
@@ -102,6 +104,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleModeSwitch = (newMode: AuthMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -110,7 +113,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
 
   const handleSocialLogin = async (provider: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Implement actual social login
+    // TODO: Implement actual social login with Supabase OAuth
     Alert.alert(
       '準備中',
       `${provider}ログインは現在準備中です。\nメールアドレスでログインしてください。`
@@ -123,21 +126,134 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // パスワードの長さチェック（Supabaseは最低6文字）
+    if (password.length < 6) {
+      Alert.alert('入力エラー', 'パスワードは6文字以上で入力してください。');
+      return;
+    }
 
-    // TODO: Implement actual authentication
-    await setOnboardingCompleted(true);
-    navigation.replace('MainTabs');
+    // メールアドレスの形式チェック
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('入力エラー', '有効なメールアドレスを入力してください。');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (mode === 'signup') {
+        // 新規登録
+        const { data, error } = await signUpWithEmail(email.trim(), password);
+
+        if (error) {
+          // エラーメッセージを日本語化
+          let errorMessage = 'アカウント作成に失敗しました。';
+          if (error.message.includes('already registered')) {
+            errorMessage = 'このメールアドレスは既に登録されています。ログインしてください。';
+          } else if (error.message.includes('invalid')) {
+            errorMessage = '無効なメールアドレスです。';
+          } else if (error.message.includes('password')) {
+            errorMessage = 'パスワードが短すぎます。6文字以上にしてください。';
+          }
+          Alert.alert('登録エラー', errorMessage);
+          setIsLoading(false);
+          return;
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // メール確認が必要な場合
+        if (data?.user && !data.session) {
+          Alert.alert(
+            '確認メールを送信しました',
+            'メールアドレスに確認メールを送信しました。リンクをクリックして登録を完了してください。',
+            [{ text: 'OK' }]
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        // セッションがある場合は即時ログイン
+        if (data?.session) {
+          await setOnboardingCompleted(true);
+          // ローカルデータをクラウドに同期
+          await supabaseService.syncLocalDataToCloud();
+          navigation.replace('MainTabs');
+        }
+      } else {
+        // ログイン
+        const { data, error } = await signInWithEmail(email.trim(), password);
+
+        if (error) {
+          // エラーメッセージを日本語化
+          let errorMessage = 'ログインに失敗しました。';
+          if (error.message.includes('Invalid login credentials')) {
+            errorMessage = 'メールアドレスまたはパスワードが正しくありません。';
+          } else if (error.message.includes('Email not confirmed')) {
+            errorMessage = 'メールアドレスが確認されていません。確認メールをご確認ください。';
+          } else if (error.message.includes('Too many requests')) {
+            errorMessage = 'ログイン試行回数が多すぎます。しばらく待ってから再試行してください。';
+          }
+          Alert.alert('ログインエラー', errorMessage);
+          setIsLoading(false);
+          return;
+        }
+
+        if (data?.session) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await setOnboardingCompleted(true);
+          // ローカルデータをクラウドに同期
+          await supabaseService.syncLocalDataToCloud();
+          navigation.replace('MainTabs');
+        }
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      Alert.alert('エラー', '認証中にエラーが発生しました。もう一度お試しください。');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (!email.trim()) {
+      Alert.alert(
+        'メールアドレスを入力',
+        'パスワードリセット用のメールを送信するために、メールアドレスを入力してください。'
+      );
+      return;
+    }
+
     Alert.alert(
       'パスワードリセット',
-      'パスワードリセットのメールを送信します。メールアドレスを入力してください。',
+      `${email}にパスワードリセットのメールを送信しますか？`,
       [
         { text: 'キャンセル', style: 'cancel' },
-        { text: '送信', onPress: () => {} },
+        {
+          text: '送信',
+          onPress: async () => {
+            try {
+              // Supabaseのパスワードリセット機能を使用
+              const { supabase } = await import('../lib/supabase');
+              const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+
+              if (error) {
+                Alert.alert('エラー', 'リセットメールの送信に失敗しました。');
+                return;
+              }
+
+              Alert.alert(
+                'メール送信完了',
+                'パスワードリセット用のメールを送信しました。メールをご確認ください。'
+              );
+            } catch (err) {
+              Alert.alert('エラー', 'リセットメールの送信に失敗しました。');
+            }
+          },
+        },
       ]
     );
   };
@@ -283,12 +399,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
               )}
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
                 onPress={handleEmailAuth}
                 activeOpacity={0.9}
+                disabled={isLoading}
               >
                 <Text style={styles.submitButtonText}>
-                  {mode === 'login' ? 'ログイン' : '新規登録'}
+                  {isLoading
+                    ? (mode === 'login' ? 'ログイン中...' : '登録中...')
+                    : (mode === 'login' ? 'ログイン' : '新規登録')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -455,6 +574,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
+  },
+  submitButtonDisabled: {
+    backgroundColor: brandColors.textMuted,
+    shadowOpacity: 0.1,
   },
   submitButtonText: {
     fontSize: 17,

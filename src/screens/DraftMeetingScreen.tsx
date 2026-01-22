@@ -35,6 +35,7 @@ import {
 import { ChatBubble } from '../components/chat/ChatBubble';
 import { saveWeeklyPlan, StoredWeeklyPlan } from '../lib/storage';
 import { colors, spacing, borderRadius } from '../lib/theme';
+import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
 
 type DraftMeetingScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DraftMeeting'>;
@@ -47,6 +48,7 @@ type DraftStep =
   | 'cuisine_preference'  // 系統の好み
   | 'cooking_style'       // 調理スタイル
   | 'weekly_theme'        // 週間テーマ
+  | 'side_dish_option'    // 副菜も提案するか
   | 'generating'          // 生成中
   | 'weekly_plan_preview' // 1週間分プレビュー
   | 'adjusting'           // 調整中
@@ -69,6 +71,10 @@ interface WeeklyPlanDraft {
   [key: string]: Recipe | null;
 }
 
+interface SideDishPlan {
+  [key: string]: SideDishSuggestion | null;
+}
+
 export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   navigation,
   route,
@@ -81,9 +87,11 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   const [cuisinePreference, setCuisinePreference] = useState<string>('any');
   const [cookingStyle, setCookingStyle] = useState<string>('balanced');
   const [weeklyTheme, setWeeklyTheme] = useState<string>('variety');
+  const [includeSideDish, setIncludeSideDish] = useState<boolean>(false);
 
   // 1週間分の献立
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanDraft>({});
+  const [sideDishPlan, setSideDishPlan] = useState<SideDishPlan>({});
   const [sharedIngredients, setSharedIngredients] = useState<string[]>([]);
 
   const flatListRef = useRef<FlatList>(null);
@@ -176,10 +184,27 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     setCurrentStep('weekly_theme');
   };
 
-  const generateWeeklyPlan = async () => {
+  const showSideDishQuestion = async () => {
     await addMessage({
       type: 'ai',
-      content: 'ちょっと待ってね...1週間分の献立を考えています 🤔',
+      content: 'もう一品（副菜）も一緒に提案する？🥗',
+      options: [
+        { id: 'side_yes', label: '副菜も欲しい', value: 'yes', emoji: '🍽️' },
+        { id: 'side_no', label: '主菜だけでOK', value: 'no', emoji: '👍' },
+      ],
+    });
+
+    setCurrentStep('side_dish_option');
+  };
+
+  const generateWeeklyPlan = async () => {
+    const messageText = includeSideDish
+      ? 'ちょっと待ってね...主菜と副菜を考えています 🤔'
+      : 'ちょっと待ってね...1週間分の献立を考えています 🤔';
+
+    await addMessage({
+      type: 'ai',
+      content: messageText,
     });
 
     setCurrentStep('generating');
@@ -190,9 +215,26 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     setWeeklyPlan(plan.recipes);
     setSharedIngredients(plan.sharedIngredients);
 
+    // 副菜も生成
+    if (includeSideDish) {
+      const sideDishes: SideDishPlan = {};
+      DAYS_ORDER.forEach((day) => {
+        const mainRecipe = plan.recipes[day];
+        if (mainRecipe) {
+          const suggestions = suggestSideDishes(mainRecipe, 1);
+          sideDishes[day] = suggestions[0] || null;
+        }
+      });
+      setSideDishPlan(sideDishes);
+    }
+
+    const completeMessage = includeSideDish
+      ? '主菜と副菜、1週間分の献立ができたよ！ 🎉'
+      : '1週間分の献立ができたよ！ 🎉';
+
     await addMessage({
       type: 'ai',
-      content: '1週間分の献立ができたよ！ 🎉',
+      content: completeMessage,
     });
 
     // 食材使い回しの説明
@@ -200,6 +242,14 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       await addMessage({
         type: 'ai',
         content: `💡 ポイント：${plan.sharedIngredients.slice(0, 3).join('、')}などを複数のレシピで使い回すから、食材が無駄にならないよ！`,
+      });
+    }
+
+    // 副菜の説明
+    if (includeSideDish) {
+      await addMessage({
+        type: 'ai',
+        content: '🥗 副菜は主菜との相性を考えて選んだよ！材料や味付けが被らないようにしてるから、バランスよく食べられるよ♪',
       });
     }
 
@@ -381,6 +431,11 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
 
       case 'weekly_theme':
         setWeeklyTheme(option.value);
+        await showSideDishQuestion();
+        break;
+
+      case 'side_dish_option':
+        setIncludeSideDish(option.value === 'yes');
         await generateWeeklyPlan();
         break;
 
@@ -492,7 +547,9 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
 
     return (
       <View style={styles.weeklyPlanContainer}>
-        <Text style={styles.weeklyPlanTitle}>📅 今週の献立</Text>
+        <Text style={styles.weeklyPlanTitle}>
+          {includeSideDish ? '📅 今週の献立（主菜＋副菜）' : '📅 今週の献立'}
+        </Text>
 
         <ScrollView
           horizontal
@@ -501,11 +558,13 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
         >
           {DAYS_ORDER.map((day) => {
             const recipe = weeklyPlan[day];
+            const sideDish = sideDishPlan[day];
             return (
               <TouchableOpacity
                 key={day}
                 style={[
                   styles.dayCard,
+                  includeSideDish && styles.dayCardWithSide,
                   currentStep === 'adjusting' && styles.dayCardEditable,
                 ]}
                 onPress={() => handleDayRecipeChange(day)}
@@ -514,14 +573,29 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
                 <Text style={styles.dayLabel}>{DAY_LABELS[day]}</Text>
                 {recipe ? (
                   <>
-                    <Text style={styles.dayEmoji}>{recipe.emoji}</Text>
-                    <Text style={styles.dayRecipeName} numberOfLines={2}>
-                      {recipe.name}
-                    </Text>
-                    <View style={styles.dayRecipeMeta}>
-                      <Clock size={10} color={colors.textMuted} />
-                      <Text style={styles.dayRecipeTime}>{recipe.cooking_time_minutes}分</Text>
+                    {/* 主菜 */}
+                    <View style={includeSideDish ? styles.mainDishSection : undefined}>
+                      {includeSideDish && <Text style={styles.dishTypeLabel}>🍳 主菜</Text>}
+                      <Text style={styles.dayEmoji}>{recipe.emoji}</Text>
+                      <Text style={styles.dayRecipeName} numberOfLines={2}>
+                        {recipe.name}
+                      </Text>
+                      <View style={styles.dayRecipeMeta}>
+                        <Clock size={10} color={colors.textMuted} />
+                        <Text style={styles.dayRecipeTime}>{recipe.cooking_time_minutes}分</Text>
+                      </View>
                     </View>
+                    {/* 副菜（表示する場合） */}
+                    {includeSideDish && sideDish && (
+                      <View style={styles.sideDishSection}>
+                        <Text style={styles.dishTypeLabel}>🥗 副菜</Text>
+                        <Text style={styles.sideDishEmoji}>{sideDish.recipe.emoji}</Text>
+                        <Text style={styles.sideDishName} numberOfLines={2}>
+                          {sideDish.recipe.name}
+                        </Text>
+                        <Text style={styles.sideDishReason}>{sideDish.reason}</Text>
+                      </View>
+                    )}
                   </>
                 ) : (
                   <Text style={styles.dayEmpty}>未定</Text>
@@ -701,6 +775,10 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     alignItems: 'center',
   },
+  dayCardWithSide: {
+    width: 110,
+    paddingBottom: spacing.md,
+  },
   dayCardEditable: {
     borderWidth: 2,
     borderColor: colors.primary,
@@ -744,6 +822,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight + '40',
     borderRadius: borderRadius.full,
     padding: 4,
+  },
+
+  // 主菜・副菜セクション
+  mainDishSection: {
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    width: '100%',
+  },
+  sideDishSection: {
+    alignItems: 'center',
+    width: '100%',
+    marginTop: spacing.xs,
+  },
+  dishTypeLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  sideDishEmoji: {
+    fontSize: 18,
+    marginBottom: 2,
+  },
+  sideDishName: {
+    fontSize: 10,
+    color: colors.text,
+    textAlign: 'center',
+    minHeight: 22,
+  },
+  sideDishReason: {
+    fontSize: 8,
+    color: colors.primary,
+    textAlign: 'center',
+    backgroundColor: colors.primaryLight + '20',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginTop: 2,
+    overflow: 'hidden',
   },
 
   // Shared Ingredients
