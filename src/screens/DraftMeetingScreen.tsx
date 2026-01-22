@@ -533,13 +533,35 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     return monday.toISOString().split('T')[0];
   };
 
+  // 処理中フラグ（連続タップ防止）
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleOptionSelect = async (option: ChatOption) => {
+    // 連続タップ防止
+    if (isProcessing) {
+      console.log('[DraftMeeting] Ignoring tap - already processing');
+      return;
+    }
+    setIsProcessing(true);
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // 選択したオプションを持つメッセージからオプションを削除
+    setMessages((prev) => prev.map((msg) => {
+      if (msg.options && msg.options.some(o => o.id === option.id)) {
+        return { ...msg, options: undefined };
+      }
+      return msg;
+    }));
+
     addUserMessage(`${option.emoji || ''} ${option.label}`.trim());
 
     await delay(300);
 
-    switch (currentStep) {
+    const stepBeforeSwitch = currentStep;
+    console.log('[DraftMeeting] handleOptionSelect - currentStep:', stepBeforeSwitch, 'option:', option.value);
+
+    switch (stepBeforeSwitch) {
       case 'cuisine_preference':
         setCuisinePreference(option.value);
         await showCookingStyleQuestion();
@@ -606,6 +628,9 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
         }
         break;
     }
+
+    // 処理完了
+    setIsProcessing(false);
   };
 
   const handleRecipeSelect = async (recipe: Recipe) => {
