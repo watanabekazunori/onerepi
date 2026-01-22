@@ -410,6 +410,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
                     : (mode === 'login' ? 'ログイン' : '新規登録')}
                 </Text>
               </TouchableOpacity>
+
+              {/* スキップボタン（開発用） */}
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  await setOnboardingCompleted(true);
+                  navigation.replace('MainTabs');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.skipButtonText}>ログインせずに始める</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -583,5 +596,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: brandColors.white,
+  },
+  skipButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  skipButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: brandColors.textMuted,
+    textDecorationLine: 'underline',
   },
 });
