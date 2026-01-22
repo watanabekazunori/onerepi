@@ -39,7 +39,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2",
-    "vercel": "^50.4.6"
+    "vercel": "^50.4.9"
   },
   "private": true
 }

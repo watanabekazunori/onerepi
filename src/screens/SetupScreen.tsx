@@ -1,9 +1,9 @@
 // ============================================
-// Onerepi - Setup Screen
-// Multi-step setup for user preferences
+// Onerepi - Setup Screen (All-in-One)
+// Single page setup for user preferences
 // ============================================
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,20 +12,15 @@ import {
   ScrollView,
   StatusBar,
   TextInput,
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { ChevronLeft, Check } from 'lucide-react-native';
+import { Check, ChefHat } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
 import { supabaseService } from '../lib/supabase-service';
-
-const { width } = Dimensions.get('window');
 
 // Brand Colors
 const brandColors = {
@@ -49,7 +44,6 @@ type SetupScreenProps = {
 
 type ExperienceLevel = 'beginner' | 'normal' | 'expert';
 type CookingTime = '10' | '20' | '30';
-type Interest = 'quick' | 'saving' | 'health' | 'easy';
 
 // Common seasonings list
 const SEASONINGS = [
@@ -67,14 +61,10 @@ const SEASONINGS = [
   { id: 'butter', label: 'バター', emoji: '🧈' },
   { id: 'mayonnaise', label: 'マヨネーズ', emoji: '🥫' },
   { id: 'ketchup', label: 'ケチャップ', emoji: '🍅' },
-  { id: 'worcester', label: 'ウスターソース', emoji: '🥫' },
-  { id: 'oyster_sauce', label: 'オイスターソース', emoji: '🦪' },
   { id: 'dashi', label: 'だしの素', emoji: '🐟' },
   { id: 'consomme', label: 'コンソメ', emoji: '🍲' },
-  { id: 'chicken_stock', label: '鶏がらスープの素', emoji: '🐔' },
+  { id: 'chicken_stock', label: '鶏がらスープ', emoji: '🐔' },
   { id: 'garlic', label: 'にんにく', emoji: '🧄' },
-  { id: 'ginger', label: '生姜', emoji: '🫚' },
-  { id: 'chili', label: '唐辛子/一味', emoji: '🌶️' },
 ];
 
 // Small frying pan icon
@@ -86,99 +76,24 @@ const FryingPanIcon = ({ size = 48 }: { size?: number }) => (
   </Svg>
 );
 
-// Progress indicator
-const ProgressIndicator = ({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) => (
-  <View style={styles.progressContainer}>
-    {Array.from({ length: totalSteps }).map((_, index) => (
-      <View
-        key={index}
-        style={[
-          styles.progressDot,
-          index < currentStep && styles.progressDotCompleted,
-          index === currentStep && styles.progressDotActive,
-        ]}
-      />
-    ))}
-  </View>
-);
-
 export const SetupScreen: React.FC<SetupScreenProps> = ({ navigation }) => {
-  const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState('');
   const [experience, setExperience] = useState<ExperienceLevel | null>(null);
   const [cookingTime, setCookingTime] = useState<CookingTime | null>(null);
-  const [interests, setInterests] = useState<Set<Interest>>(new Set());
-  const [seasonings, setSeasonings] = useState<Set<string>>(new Set());
+  const [seasonings, setSeasonings] = useState<Set<string>>(new Set(['salt', 'soy_sauce', 'oil']));
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const scrollViewRef = useRef<ScrollView>(null);
-  const slideAnim = useRef(new Animated.Value(0)).current;
-
-  const totalSteps = 5; // Name, Experience, Time, Interests, Seasonings
-
-  const experienceOptions: { value: ExperienceLevel; emoji: string; label: string; desc: string }[] = [
-    { value: 'beginner', emoji: '🔰', label: '初心者', desc: 'これから料理を始めたい' },
-    { value: 'normal', emoji: '👨‍🍳', label: 'ふつう', desc: '基本的な料理はできる' },
-    { value: 'expert', emoji: '⭐', label: '得意', desc: '料理が好きでよく作る' },
+  const experienceOptions: { value: ExperienceLevel; emoji: string; label: string }[] = [
+    { value: 'beginner', emoji: '🔰', label: '初心者' },
+    { value: 'normal', emoji: '👨‍🍳', label: 'ふつう' },
+    { value: 'expert', emoji: '⭐', label: '得意' },
   ];
 
-  const timeOptions: { value: CookingTime; label: string; desc: string }[] = [
-    { value: '10', label: '〜10分', desc: 'パパッと時短で' },
-    { value: '20', label: '〜20分', desc: 'ちょうどいい時間' },
-    { value: '30', label: '30分以上', desc: 'じっくり料理したい' },
+  const timeOptions: { value: CookingTime; label: string }[] = [
+    { value: '10', label: '〜10分' },
+    { value: '20', label: '〜20分' },
+    { value: '30', label: '30分〜' },
   ];
-
-  const interestOptions: { value: Interest; emoji: string; label: string }[] = [
-    { value: 'quick', emoji: '⏱', label: '時短' },
-    { value: 'saving', emoji: '💰', label: '節約' },
-    { value: 'health', emoji: '💪', label: '健康' },
-    { value: 'easy', emoji: '✨', label: '簡単' },
-  ];
-
-  const animateToStep = (step: number) => {
-    Animated.timing(slideAnim, {
-      toValue: -step * width,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-    setCurrentStep(step);
-  };
-
-  const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (currentStep < totalSteps - 1) {
-      animateToStep(currentStep + 1);
-    } else {
-      handleComplete();
-    }
-  };
-
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (currentStep > 0) {
-      animateToStep(currentStep - 1);
-    }
-  };
-
-  const handleComplete = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    try {
-      // Save to Supabase
-      await supabaseService.saveUserProfile({
-        name: name.trim() || 'ユーザー',
-        cooking_skill: experience || 'beginner',
-        cooking_time_preference: cookingTime || '20',
-        interests: Array.from(interests),
-        seasonings: Array.from(seasonings),
-      });
-
-      navigation.replace('MainTabs');
-    } catch (error) {
-      console.error('Failed to save profile:', error);
-      // Still navigate even if save fails (will use local storage fallback)
-      navigation.replace('MainTabs');
-    }
-  };
 
   const handleSeasoningToggle = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -193,274 +108,193 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ navigation }) => {
     });
   };
 
-  const handleSelectAllSeasonings = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (seasonings.size === SEASONINGS.length) {
-      setSeasonings(new Set());
-    } else {
-      setSeasonings(new Set(SEASONINGS.map(s => s.id)));
+  const handleComplete = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    try {
+      await supabaseService.saveUserProfile({
+        name: name.trim() || 'ユーザー',
+        cooking_skill: experience || 'normal',
+        cooking_time_preference: cookingTime || '20',
+        interests: [],
+        seasonings: Array.from(seasonings),
+      });
+
+      navigation.replace('MainTabs');
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      navigation.replace('MainTabs');
     }
   };
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0: return name.trim().length > 0;
-      case 1: return experience !== null;
-      case 2: return cookingTime !== null;
-      case 3: return true; // interests are optional
-      case 4: return true; // seasonings are optional
-      default: return false;
-    }
-  };
-
-  const getStepTitle = () => {
-    switch (currentStep) {
-      case 0: return 'お名前を教えてください';
-      case 1: return '料理の経験は？';
-      case 2: return '1食の調理時間は？';
-      case 3: return '気になるポイントは？';
-      case 4: return '持っている調味料は？';
-      default: return '';
-    }
-  };
-
-  const getStepSubtitle = () => {
-    switch (currentStep) {
-      case 0: return 'ニックネームでOKです';
-      case 1: return 'あなたに合ったレシピをおすすめします';
-      case 2: return '目安の時間を選んでください';
-      case 3: return '複数選択できます（スキップ可）';
-      case 4: return '選択した調味料でレシピを提案します';
-      default: return '';
-    }
-  };
+  const canProceed = name.trim().length > 0 && experience !== null && cookingTime !== null;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={brandColors.white} />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          {currentStep > 0 ? (
-            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <ChevronLeft size={24} color={brandColors.text} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.backButton} />
-          )}
-          <ProgressIndicator currentStep={currentStep} totalSteps={totalSteps} />
-          <View style={styles.backButton} />
-        </View>
-
-        {/* Content */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.contentContainer}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.titleContainer}>
-            <FryingPanIcon size={48} />
-            <Text style={styles.title}>{getStepTitle()}</Text>
-            <Text style={styles.subtitle}>{getStepSubtitle()}</Text>
+          {/* Header */}
+          <View style={styles.headerSection}>
+            <FryingPanIcon size={56} />
+            <Text style={styles.mainTitle}>はじめまして！</Text>
+            <Text style={styles.mainSubtitle}>あなたに合ったレシピを提案するために{'\n'}かんたんな質問に答えてね</Text>
           </View>
 
-          <Animated.View
-            style={[
-              styles.slidesContainer,
-              { transform: [{ translateX: slideAnim }] }
-            ]}
-          >
-            {/* Step 0: Name */}
-            <View style={styles.slide}>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder="例：たろう"
-                  placeholderTextColor={brandColors.textMuted}
-                  value={name}
-                  onChangeText={setName}
-                  autoFocus
-                  maxLength={20}
-                />
-              </View>
+          {/* Section 1: Name */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionNumber}>1</Text>
+              <Text style={styles.sectionTitle}>ニックネーム</Text>
             </View>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="例：たろう"
+              placeholderTextColor={brandColors.textMuted}
+              value={name}
+              onChangeText={setName}
+              maxLength={20}
+            />
+          </View>
 
-            {/* Step 1: Experience */}
-            <View style={styles.slide}>
-              <View style={styles.optionsContainer}>
-                {experienceOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
+          {/* Section 2: Experience */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionNumber}>2</Text>
+              <Text style={styles.sectionTitle}>料理の経験</Text>
+            </View>
+            <View style={styles.horizontalOptions}>
+              {experienceOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.experienceChip,
+                    experience === option.value && styles.experienceChipSelected,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setExperience(option.value);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.experienceEmoji}>{option.emoji}</Text>
+                  <Text
                     style={[
-                      styles.experienceCard,
-                      experience === option.value && styles.experienceCardSelected,
+                      styles.experienceLabel,
+                      experience === option.value && styles.experienceLabelSelected,
                     ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setExperience(option.value);
-                    }}
-                    activeOpacity={0.7}
                   >
-                    <Text style={styles.experienceEmoji}>{option.emoji}</Text>
-                    <View style={styles.experienceTextContainer}>
-                      <Text
-                        style={[
-                          styles.experienceLabel,
-                          experience === option.value && styles.experienceLabelSelected,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      <Text style={styles.experienceDesc}>{option.desc}</Text>
-                    </View>
-                    {experience === option.value && (
-                      <Check size={20} color={brandColors.primary} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
+          </View>
 
-            {/* Step 2: Cooking Time */}
-            <View style={styles.slide}>
-              <View style={styles.optionsContainer}>
-                {timeOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
+          {/* Section 3: Cooking Time */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionNumber}>3</Text>
+              <Text style={styles.sectionTitle}>目安の調理時間</Text>
+            </View>
+            <View style={styles.horizontalOptions}>
+              {timeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.timeChip,
+                    cookingTime === option.value && styles.timeChipSelected,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setCookingTime(option.value);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
                     style={[
-                      styles.timeCard,
-                      cookingTime === option.value && styles.timeCardSelected,
+                      styles.timeLabel,
+                      cookingTime === option.value && styles.timeLabelSelected,
                     ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setCookingTime(option.value);
-                    }}
-                    activeOpacity={0.7}
                   >
-                    <Text
-                      style={[
-                        styles.timeLabel,
-                        cookingTime === option.value && styles.timeLabelSelected,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text style={styles.timeDesc}>{option.desc}</Text>
-                  </TouchableOpacity>
-                ))}
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Section 4: Seasonings */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionNumber}>4</Text>
+              <View style={styles.sectionTitleRow}>
+                <ChefHat size={18} color={brandColors.primary} />
+                <Text style={styles.sectionTitle}>持っている調味料</Text>
               </View>
             </View>
-
-            {/* Step 3: Interests */}
-            <View style={styles.slide}>
-              <View style={styles.interestsGrid}>
-                {interestOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
+            <Text style={styles.sectionHint}>選んだ調味料でレシピを提案します</Text>
+            <View style={styles.seasoningsGrid}>
+              {SEASONINGS.map((seasoning) => (
+                <TouchableOpacity
+                  key={seasoning.id}
+                  style={[
+                    styles.seasoningChip,
+                    seasonings.has(seasoning.id) && styles.seasoningChipSelected,
+                  ]}
+                  onPress={() => handleSeasoningToggle(seasoning.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.seasoningEmoji}>{seasoning.emoji}</Text>
+                  <Text
                     style={[
-                      styles.interestChip,
-                      interests.has(option.value) && styles.interestChipSelected,
+                      styles.seasoningLabel,
+                      seasonings.has(seasoning.id) && styles.seasoningLabelSelected,
                     ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setInterests((prev) => {
-                        const newSet = new Set(prev);
-                        if (newSet.has(option.value)) {
-                          newSet.delete(option.value);
-                        } else {
-                          newSet.add(option.value);
-                        }
-                        return newSet;
-                      });
-                    }}
-                    activeOpacity={0.7}
                   >
-                    <Text style={styles.interestEmoji}>{option.emoji}</Text>
-                    <Text
-                      style={[
-                        styles.interestLabel,
-                        interests.has(option.value) && styles.interestLabelSelected,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {seasoning.label}
+                  </Text>
+                  {seasonings.has(seasoning.id) && (
+                    <Check size={14} color={brandColors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
+          </View>
 
-            {/* Step 4: Seasonings */}
-            <View style={styles.slide}>
-              <TouchableOpacity
-                style={styles.selectAllButton}
-                onPress={handleSelectAllSeasonings}
-              >
-                <Text style={styles.selectAllText}>
-                  {seasonings.size === SEASONINGS.length ? 'すべて解除' : 'すべて選択'}
-                </Text>
-              </TouchableOpacity>
-              <ScrollView
-                style={styles.seasoningsScroll}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.seasoningsContent}
-              >
-                <View style={styles.seasoningsGrid}>
-                  {SEASONINGS.map((seasoning) => (
-                    <TouchableOpacity
-                      key={seasoning.id}
-                      style={[
-                        styles.seasoningChip,
-                        seasonings.has(seasoning.id) && styles.seasoningChipSelected,
-                      ]}
-                      onPress={() => handleSeasoningToggle(seasoning.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.seasoningEmoji}>{seasoning.emoji}</Text>
-                      <Text
-                        style={[
-                          styles.seasoningLabel,
-                          seasonings.has(seasoning.id) && styles.seasoningLabelSelected,
-                        ]}
-                      >
-                        {seasoning.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          </Animated.View>
-        </KeyboardAvoidingView>
+          {/* Spacer for bottom button */}
+          <View style={{ height: 100 }} />
+        </ScrollView>
 
         {/* Bottom CTA */}
         <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={[
-              styles.nextButton,
-              !canProceed() && styles.nextButtonDisabled,
+              styles.startButton,
+              (!canProceed || isSubmitting) && styles.startButtonDisabled,
             ]}
-            onPress={handleNext}
+            onPress={handleComplete}
             activeOpacity={0.9}
-            disabled={!canProceed()}
+            disabled={!canProceed || isSubmitting}
           >
             <Text
               style={[
-                styles.nextButtonText,
-                !canProceed() && styles.nextButtonTextDisabled,
+                styles.startButtonText,
+                (!canProceed || isSubmitting) && styles.startButtonTextDisabled,
               ]}
             >
-              {currentStep === totalSteps - 1 ? 'はじめる' : '次へ'}
+              {isSubmitting ? '設定中...' : 'はじめる 🍳'}
             </Text>
           </TouchableOpacity>
-
-          {(currentStep === 3 || currentStep === 4) && (
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleNext}
-            >
-              <Text style={styles.skipButtonText}>スキップ</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </SafeAreaView>
     </View>
@@ -475,206 +309,142 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: brandColors.border,
-  },
-  progressDotActive: {
-    width: 24,
-    backgroundColor: brandColors.primary,
-  },
-  progressDotCompleted: {
-    backgroundColor: brandColors.success,
-  },
-  contentContainer: {
+  scrollView: {
     flex: 1,
   },
-  titleContainer: {
-    alignItems: 'center',
+  scrollContent: {
     paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+  headerSection: {
+    alignItems: 'center',
     marginBottom: 32,
   },
-  title: {
-    fontSize: 24,
+  mainTitle: {
+    fontSize: 28,
     fontWeight: '700',
     color: brandColors.text,
-    textAlign: 'center',
     marginTop: 16,
   },
-  subtitle: {
+  mainSubtitle: {
     fontSize: 15,
     fontWeight: '400',
     color: brandColors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
+    lineHeight: 22,
   },
-  slidesContainer: {
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
     flexDirection: 'row',
-    flex: 1,
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
   },
-  slide: {
-    width,
-    paddingHorizontal: 24,
+  sectionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: brandColors.primary,
+    color: brandColors.white,
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 24,
+    overflow: 'hidden',
   },
-  inputWrapper: {
-    marginTop: 20,
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: brandColors.text,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: brandColors.textMuted,
+    marginBottom: 12,
+    marginLeft: 34,
   },
   nameInput: {
     backgroundColor: brandColors.surface,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    fontSize: 20,
-    fontWeight: '600',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 17,
+    fontWeight: '500',
     color: brandColors.text,
-    textAlign: 'center',
     borderWidth: 2,
     borderColor: brandColors.border,
   },
-  optionsContainer: {
-    gap: 12,
-  },
-  experienceCard: {
+  horizontalOptions: {
     flexDirection: 'row',
+    gap: 10,
+  },
+  experienceChip: {
+    flex: 1,
     alignItems: 'center',
     backgroundColor: brandColors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    gap: 6,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  experienceCardSelected: {
+  experienceChipSelected: {
     backgroundColor: brandColors.primarySoft,
     borderColor: brandColors.primary,
   },
   experienceEmoji: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  experienceTextContainer: {
-    flex: 1,
+    fontSize: 24,
   },
   experienceLabel: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '600',
-    color: brandColors.text,
+    color: brandColors.textSecondary,
   },
   experienceLabelSelected: {
     color: brandColors.primary,
   },
-  experienceDesc: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: brandColors.textMuted,
-    marginTop: 2,
-  },
-  timeCard: {
+  timeChip: {
+    flex: 1,
+    alignItems: 'center',
     backgroundColor: brandColors.surface,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    paddingVertical: 16,
     borderWidth: 2,
     borderColor: 'transparent',
-    alignItems: 'center',
   },
-  timeCardSelected: {
+  timeChipSelected: {
     backgroundColor: brandColors.primarySoft,
     borderColor: brandColors.primary,
   },
   timeLabel: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: brandColors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
   },
   timeLabelSelected: {
     color: brandColors.primary,
   },
-  timeDesc: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: brandColors.textMuted,
-    marginTop: 4,
-  },
-  interestsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  interestChip: {
-    width: '47%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: brandColors.surface,
-    borderRadius: 16,
-    paddingVertical: 20,
-    gap: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  interestChipSelected: {
-    backgroundColor: brandColors.primarySoft,
-    borderColor: brandColors.primary,
-  },
-  interestEmoji: {
-    fontSize: 24,
-  },
-  interestLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: brandColors.textSecondary,
-  },
-  interestLabelSelected: {
-    color: brandColors.primary,
-  },
-  selectAllButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 12,
-  },
-  selectAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: brandColors.primary,
-  },
-  seasoningsScroll: {
-    flex: 1,
-    marginBottom: 20,
-  },
-  seasoningsContent: {
-    paddingBottom: 20,
-  },
   seasoningsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   seasoningChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: brandColors.surface,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 6,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 4,
     borderWidth: 2,
     borderColor: 'transparent',
   },
@@ -683,10 +453,10 @@ const styles = StyleSheet.create({
     borderColor: brandColors.primary,
   },
   seasoningEmoji: {
-    fontSize: 16,
+    fontSize: 14,
   },
   seasoningLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: brandColors.textSecondary,
   },
@@ -694,14 +464,18 @@ const styles = StyleSheet.create({
     color: brandColors.primary,
   },
   bottomContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 24,
-    paddingBottom: 34,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
     paddingTop: 16,
     backgroundColor: brandColors.white,
     borderTopWidth: 1,
     borderTopColor: brandColors.border,
   },
-  nextButton: {
+  startButton: {
     backgroundColor: brandColors.primary,
     paddingVertical: 18,
     borderRadius: 16,
@@ -712,28 +486,18 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  nextButtonDisabled: {
+  startButtonDisabled: {
     backgroundColor: brandColors.border,
     shadowOpacity: 0,
     elevation: 0,
   },
-  nextButtonText: {
+  startButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: brandColors.white,
     letterSpacing: 0.5,
   },
-  nextButtonTextDisabled: {
-    color: brandColors.textMuted,
-  },
-  skipButton: {
-    marginTop: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
+  startButtonTextDisabled: {
     color: brandColors.textMuted,
   },
 });
