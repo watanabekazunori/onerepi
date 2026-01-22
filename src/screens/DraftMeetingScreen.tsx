@@ -225,6 +225,7 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   };
 
   const showSideDishQuestion = async () => {
+    console.log('[DraftMeeting] showSideDishQuestion called');
     await addMessage({
       type: 'ai',
       content: 'もう一品（副菜）も一緒に提案する？🥗',
@@ -233,7 +234,7 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
         { id: 'side_no', label: '主菜だけでOK', value: 'no', emoji: '👍' },
       ],
     });
-
+    console.log('[DraftMeeting] Side dish message added, setting step to side_dish_option');
     setCurrentStep('side_dish_option');
   };
 
@@ -550,8 +551,11 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
         break;
 
       case 'weekly_theme':
+        console.log('[DraftMeeting] weekly_theme selected:', option.value);
         setWeeklyTheme(option.value);
+        console.log('[DraftMeeting] Calling showSideDishQuestion...');
         await showSideDishQuestion();
+        console.log('[DraftMeeting] showSideDishQuestion completed');
         break;
 
       case 'side_dish_option':
