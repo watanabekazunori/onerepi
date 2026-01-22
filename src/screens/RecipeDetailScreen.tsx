@@ -28,12 +28,16 @@ import {
   Heart,
   Calendar,
   Flame,
+  Utensils,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as ExpoCalendar from 'expo-calendar';
 import { RootStackParamList, Recipe, RECIPE_CATEGORY_LABELS } from '../types';
 import { MOCK_RECIPES } from '../lib/mockData';
 import { isFavorite, toggleFavorite } from '../lib/storage';
+import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
 import { NutritionChart, DifficultyBadge, TimeBadge } from '../components/ui';
 import {
   newColors,
@@ -57,6 +61,21 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
   const recipe = MOCK_RECIPES.find((r) => r.id === recipeId);
   const [servings, setServings] = useState(recipe?.servings || 1);
   const [isFav, setIsFav] = useState(false);
+  const [sideDishSuggestions, setSideDishSuggestions] = useState<SideDishSuggestion[]>([]);
+
+  // 副菜提案を取得
+  React.useEffect(() => {
+    if (recipe) {
+      const suggestions = suggestSideDishes(recipe, 3);
+      setSideDishSuggestions(suggestions);
+    }
+  }, [recipe]);
+
+  // 副菜をタップしたとき
+  const handleSideDishPress = (sideDishRecipe: Recipe) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.push('RecipeDetail', { recipeId: sideDishRecipe.id });
+  };
 
   // お気に入り状態を読み込み
   useFocusEffect(
@@ -356,6 +375,55 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
             })}
           </View>
         </View>
+
+        {/* もう一品セクション */}
+        {sideDishSuggestions.length > 0 && (
+          <View style={[styles.section, shadows.sm]}>
+            <View style={styles.sectionHeader}>
+              <Utensils size={20} color={newColors.primary} />
+              <Text style={styles.sectionTitle}>相性の良いもう一品</Text>
+            </View>
+            <Text style={styles.sideDishSubtitle}>
+              この料理と合わせておすすめ
+            </Text>
+            <View style={styles.sideDishList}>
+              {sideDishSuggestions.map((suggestion) => (
+                <TouchableOpacity
+                  key={suggestion.recipe.id}
+                  style={styles.sideDishCard}
+                  onPress={() => handleSideDishPress(suggestion.recipe)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.sideDishEmoji}>
+                    <Text style={styles.sideDishEmojiText}>
+                      {suggestion.recipe.emoji}
+                    </Text>
+                  </View>
+                  <View style={styles.sideDishInfo}>
+                    <Text style={styles.sideDishName} numberOfLines={1}>
+                      {suggestion.recipe.name}
+                    </Text>
+                    <View style={styles.sideDishMeta}>
+                      <View style={styles.sideDishReason}>
+                        <Sparkles size={10} color={newColors.primary} />
+                        <Text style={styles.sideDishReasonText}>
+                          {suggestion.reason}
+                        </Text>
+                      </View>
+                      <View style={styles.sideDishTime}>
+                        <Clock size={10} color={newColors.textMuted} />
+                        <Text style={styles.sideDishTimeText}>
+                          {suggestion.recipe.cooking_time_minutes}分
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  <ChevronRight size={16} color={newColors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={styles.spacer} />
       </ScrollView>
@@ -767,5 +835,72 @@ const styles = StyleSheet.create({
     fontSize: newTypography.sizes.lg,
     fontWeight: newTypography.weights.bold,
     color: newColors.white,
+  },
+
+  // Side Dish Suggestions
+  sideDishSubtitle: {
+    fontSize: newTypography.sizes.sm,
+    color: newColors.textMuted,
+    marginBottom: newSpacing.md,
+    marginTop: -newSpacing.xs,
+  },
+  sideDishList: {
+    gap: newSpacing.sm,
+  },
+  sideDishCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: newColors.surfaceAlt,
+    borderRadius: newBorderRadius.md,
+    padding: newSpacing.sm,
+  },
+  sideDishEmoji: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: newColors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: newSpacing.sm,
+  },
+  sideDishEmojiText: {
+    fontSize: 22,
+  },
+  sideDishInfo: {
+    flex: 1,
+  },
+  sideDishName: {
+    fontSize: newTypography.sizes.md,
+    fontWeight: newTypography.weights.semibold,
+    color: newColors.text,
+    marginBottom: 4,
+  },
+  sideDishMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: newSpacing.sm,
+  },
+  sideDishReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: newColors.primarySoft,
+    paddingHorizontal: newSpacing.xs,
+    paddingVertical: 2,
+    borderRadius: newBorderRadius.sm,
+    gap: 2,
+  },
+  sideDishReasonText: {
+    fontSize: newTypography.sizes.xs,
+    color: newColors.primary,
+    fontWeight: newTypography.weights.medium,
+  },
+  sideDishTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  sideDishTimeText: {
+    fontSize: newTypography.sizes.xs,
+    color: newColors.textMuted,
   },
 });

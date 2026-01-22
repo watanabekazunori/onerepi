@@ -6,55 +6,105 @@ import { Recipe, RecipeCategory, IngredientCategory, Ingredient, CookingStep } f
 
 // ========== 基本データ ==========
 
-// メイン食材（タンパク質）
+// メイン食材（タンパク質）- 50種類に拡張
 const PROTEINS = [
+  // 鶏肉
   { name: '鶏もも肉', emoji: '🍗', category: 'protein' as IngredientCategory },
   { name: '鶏むね肉', emoji: '🐔', category: 'protein' as IngredientCategory },
   { name: '鶏ひき肉', emoji: '🐔', category: 'protein' as IngredientCategory },
   { name: '鶏ささみ', emoji: '🐔', category: 'protein' as IngredientCategory },
+  { name: '鶏手羽元', emoji: '🍗', category: 'protein' as IngredientCategory },
+  { name: '鶏手羽先', emoji: '🍗', category: 'protein' as IngredientCategory },
+  { name: '鶏レバー', emoji: '🐔', category: 'protein' as IngredientCategory },
+  // 豚肉
   { name: '豚バラ肉', emoji: '🥓', category: 'protein' as IngredientCategory },
   { name: '豚こま切れ', emoji: '🐷', category: 'protein' as IngredientCategory },
   { name: '豚ひき肉', emoji: '🐷', category: 'protein' as IngredientCategory },
   { name: '豚ロース', emoji: '🐷', category: 'protein' as IngredientCategory },
+  { name: '豚肩ロース', emoji: '🐷', category: 'protein' as IngredientCategory },
+  { name: '豚もも肉', emoji: '🐷', category: 'protein' as IngredientCategory },
+  { name: '豚ヒレ肉', emoji: '🐷', category: 'protein' as IngredientCategory },
+  // 牛肉
   { name: '牛こま切れ', emoji: '🥩', category: 'protein' as IngredientCategory },
   { name: '牛ひき肉', emoji: '🥩', category: 'protein' as IngredientCategory },
   { name: '牛薄切り', emoji: '🥩', category: 'protein' as IngredientCategory },
+  { name: '牛もも肉', emoji: '🥩', category: 'protein' as IngredientCategory },
+  { name: '牛バラ肉', emoji: '🥩', category: 'protein' as IngredientCategory },
   { name: '合いびき肉', emoji: '🍖', category: 'protein' as IngredientCategory },
+  // 魚介類
   { name: '鮭', emoji: '🐟', category: 'protein' as IngredientCategory },
   { name: 'サバ', emoji: '🐟', category: 'protein' as IngredientCategory },
   { name: 'ブリ', emoji: '🐟', category: 'protein' as IngredientCategory },
   { name: 'タラ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'マグロ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'カツオ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'アジ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'サンマ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'イワシ', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'ホッケ', emoji: '🐟', category: 'protein' as IngredientCategory },
   { name: 'エビ', emoji: '🦐', category: 'protein' as IngredientCategory },
   { name: 'イカ', emoji: '🦑', category: 'protein' as IngredientCategory },
   { name: 'タコ', emoji: '🐙', category: 'protein' as IngredientCategory },
   { name: 'アサリ', emoji: '🐚', category: 'protein' as IngredientCategory },
+  { name: 'ホタテ', emoji: '🐚', category: 'protein' as IngredientCategory },
+  { name: 'カニカマ', emoji: '🦀', category: 'protein' as IngredientCategory },
+  // 缶詰
   { name: 'ツナ缶', emoji: '🐟', category: 'protein' as IngredientCategory },
   { name: 'サバ缶', emoji: '🐟', category: 'protein' as IngredientCategory },
+  { name: 'さんま缶', emoji: '🐟', category: 'protein' as IngredientCategory },
+  // 卵・大豆製品
   { name: '卵', emoji: '🥚', category: 'protein' as IngredientCategory },
+  { name: '温泉卵', emoji: '🥚', category: 'protein' as IngredientCategory },
   { name: '豆腐', emoji: '🧈', category: 'protein' as IngredientCategory },
+  { name: '絹豆腐', emoji: '🧈', category: 'protein' as IngredientCategory },
   { name: '厚揚げ', emoji: '🧈', category: 'protein' as IngredientCategory },
   { name: '油揚げ', emoji: '🧈', category: 'protein' as IngredientCategory },
+  { name: '納豆', emoji: '🫘', category: 'protein' as IngredientCategory },
+  // 加工品
   { name: 'ベーコン', emoji: '🥓', category: 'protein' as IngredientCategory },
   { name: 'ソーセージ', emoji: '🌭', category: 'protein' as IngredientCategory },
   { name: 'ハム', emoji: '🍖', category: 'protein' as IngredientCategory },
   { name: 'ちくわ', emoji: '🍢', category: 'protein' as IngredientCategory },
+  { name: 'かまぼこ', emoji: '🍥', category: 'protein' as IngredientCategory },
+  { name: 'はんぺん', emoji: '🍢', category: 'protein' as IngredientCategory },
 ];
 
-// 野菜
+// 野菜 - 60種類に拡張
 const VEGETABLES = [
+  // 葉物野菜
   { name: 'キャベツ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: '白菜', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: 'レタス', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: 'ほうれん草', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: '小松菜', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: 'チンゲン菜', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: '水菜', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: '春菊', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  { name: 'ニラ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: '三つ葉', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  { name: '大葉', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  { name: 'パセリ', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  { name: 'バジル', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  // もやし系
   { name: 'もやし', emoji: '🌱', category: 'vegetable' as IngredientCategory },
+  { name: '豆苗', emoji: '🌱', category: 'vegetable' as IngredientCategory },
+  { name: 'カイワレ', emoji: '🌱', category: 'vegetable' as IngredientCategory },
+  // ネギ・玉ねぎ
   { name: '玉ねぎ', emoji: '🧅', category: 'vegetable' as IngredientCategory },
   { name: '長ネギ', emoji: '🧅', category: 'vegetable' as IngredientCategory },
+  { name: '青ネギ', emoji: '🧅', category: 'vegetable' as IngredientCategory },
+  { name: '万能ねぎ', emoji: '🧅', category: 'vegetable' as IngredientCategory },
+  // 根菜
   { name: 'にんじん', emoji: '🥕', category: 'vegetable' as IngredientCategory },
   { name: 'じゃがいも', emoji: '🥔', category: 'vegetable' as IngredientCategory },
   { name: 'さつまいも', emoji: '🍠', category: 'vegetable' as IngredientCategory },
+  { name: '里芋', emoji: '🥔', category: 'vegetable' as IngredientCategory },
   { name: '大根', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: 'かぶ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: 'れんこん', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: 'ごぼう', emoji: '🥕', category: 'vegetable' as IngredientCategory },
+  { name: 'たけのこ', emoji: '🎋', category: 'vegetable' as IngredientCategory },
+  // 果菜
   { name: 'ピーマン', emoji: '🫑', category: 'vegetable' as IngredientCategory },
   { name: 'パプリカ', emoji: '🫑', category: 'vegetable' as IngredientCategory },
   { name: 'なす', emoji: '🍆', category: 'vegetable' as IngredientCategory },
@@ -62,30 +112,38 @@ const VEGETABLES = [
   { name: 'ミニトマト', emoji: '🍅', category: 'vegetable' as IngredientCategory },
   { name: 'きゅうり', emoji: '🥒', category: 'vegetable' as IngredientCategory },
   { name: 'ズッキーニ', emoji: '🥒', category: 'vegetable' as IngredientCategory },
+  { name: 'ゴーヤ', emoji: '🥒', category: 'vegetable' as IngredientCategory },
+  { name: 'かぼちゃ', emoji: '🎃', category: 'vegetable' as IngredientCategory },
+  { name: 'オクラ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: 'とうもろこし', emoji: '🌽', category: 'vegetable' as IngredientCategory },
+  { name: '枝豆', emoji: '🫛', category: 'vegetable' as IngredientCategory },
+  { name: 'スナップエンドウ', emoji: '🫛', category: 'vegetable' as IngredientCategory },
+  { name: 'いんげん', emoji: '🫛', category: 'vegetable' as IngredientCategory },
+  // ブロッコリー系
   { name: 'ブロッコリー', emoji: '🥦', category: 'vegetable' as IngredientCategory },
   { name: 'カリフラワー', emoji: '🥦', category: 'vegetable' as IngredientCategory },
   { name: 'アスパラガス', emoji: '🥬', category: 'vegetable' as IngredientCategory },
   { name: 'セロリ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  // きのこ
   { name: 'しめじ', emoji: '🍄', category: 'vegetable' as IngredientCategory },
   { name: 'えのき', emoji: '🍄', category: 'vegetable' as IngredientCategory },
   { name: 'エリンギ', emoji: '🍄', category: 'vegetable' as IngredientCategory },
   { name: 'まいたけ', emoji: '🍄', category: 'vegetable' as IngredientCategory },
   { name: 'しいたけ', emoji: '🍄', category: 'vegetable' as IngredientCategory },
+  { name: 'マッシュルーム', emoji: '🍄', category: 'vegetable' as IngredientCategory },
+  { name: 'なめこ', emoji: '🍄', category: 'vegetable' as IngredientCategory },
+  // 香味野菜
   { name: 'にんにく', emoji: '🧄', category: 'vegetable' as IngredientCategory },
   { name: '生姜', emoji: '🫚', category: 'vegetable' as IngredientCategory },
-  { name: '大葉', emoji: '🌿', category: 'vegetable' as IngredientCategory },
-  { name: 'ニラ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
-  { name: 'オクラ', emoji: '🥬', category: 'vegetable' as IngredientCategory },
-  { name: 'かぼちゃ', emoji: '🎃', category: 'vegetable' as IngredientCategory },
-  { name: 'ゴーヤ', emoji: '🥒', category: 'vegetable' as IngredientCategory },
-  { name: 'れんこん', emoji: '🥬', category: 'vegetable' as IngredientCategory },
-  { name: 'ごぼう', emoji: '🥕', category: 'vegetable' as IngredientCategory },
-  { name: 'たけのこ', emoji: '🎋', category: 'vegetable' as IngredientCategory },
-  { name: '水菜', emoji: '🥬', category: 'vegetable' as IngredientCategory },
+  { name: 'みょうが', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  // その他
+  { name: 'もずく', emoji: '🌿', category: 'vegetable' as IngredientCategory },
+  { name: 'めかぶ', emoji: '🌿', category: 'vegetable' as IngredientCategory },
 ];
 
-// 調味料・ソース系
+// 調味料・ソース系 - 50種類に拡張
 const SEASONINGS = [
+  // 和風基本
   { name: '醤油', unit: '大さじ' },
   { name: 'みりん', unit: '大さじ' },
   { name: '酒', unit: '大さじ' },
@@ -93,35 +151,66 @@ const SEASONINGS = [
   { name: '塩', unit: '少々' },
   { name: 'こしょう', unit: '少々' },
   { name: '味噌', unit: '大さじ' },
+  { name: '赤味噌', unit: '大さじ' },
+  { name: '白味噌', unit: '大さじ' },
   { name: 'めんつゆ', unit: '大さじ' },
+  { name: '白だし', unit: '大さじ' },
+  { name: 'ポン酢', unit: '大さじ' },
+  { name: '酢', unit: '大さじ' },
+  { name: 'すし酢', unit: '大さじ' },
+  { name: '梅肉', unit: '小さじ' },
+  { name: 'わさび', unit: '小さじ' },
+  { name: 'からし', unit: '小さじ' },
+  { name: '柚子胡椒', unit: '小さじ' },
+  // 中華・アジア
   { name: 'オイスターソース', unit: '大さじ' },
   { name: '鶏がらスープの素', unit: '小さじ' },
+  { name: '豆板醤', unit: '小さじ' },
+  { name: 'コチュジャン', unit: '大さじ' },
+  { name: '甜麺醤', unit: '大さじ' },
+  { name: 'XO醤', unit: '小さじ' },
+  { name: '黒酢', unit: '大さじ' },
+  { name: 'ナンプラー', unit: '大さじ' },
+  { name: 'スイートチリソース', unit: '大さじ' },
+  { name: 'ラー油', unit: '小さじ' },
+  { name: '花椒', unit: '少々' },
+  { name: '五香粉', unit: '少々' },
+  // 洋風
   { name: 'コンソメ', unit: '小さじ' },
   { name: 'ケチャップ', unit: '大さじ' },
   { name: 'マヨネーズ', unit: '大さじ' },
+  { name: 'マスタード', unit: '小さじ' },
+  { name: '粒マスタード', unit: '小さじ' },
+  { name: 'バルサミコ酢', unit: '大さじ' },
+  { name: 'ウスターソース', unit: '大さじ' },
+  { name: 'デミグラスソース', unit: '大さじ' },
+  { name: 'トマトソース', unit: '大さじ' },
+  { name: 'ホワイトソース', unit: '大さじ' },
+  { name: 'アンチョビペースト', unit: '小さじ' },
+  // 油・スパイス
   { name: 'ごま油', unit: '大さじ' },
   { name: 'オリーブオイル', unit: '大さじ' },
   { name: 'バター', unit: 'g' },
-  { name: '豆板醤', unit: '小さじ' },
-  { name: 'コチュジャン', unit: '大さじ' },
-  { name: 'ナンプラー', unit: '大さじ' },
   { name: 'カレー粉', unit: '大さじ' },
-  { name: 'ポン酢', unit: '大さじ' },
+  { name: 'ガラムマサラ', unit: '小さじ' },
+  { name: 'クミン', unit: '少々' },
+  { name: 'パプリカパウダー', unit: '少々' },
+  // 便利調味料
   { name: '焼肉のタレ', unit: '大さじ' },
-  { name: '白だし', unit: '大さじ' },
-  { name: '酢', unit: '大さじ' },
-  { name: 'ラー油', unit: '小さじ' },
+  { name: '照り焼きのタレ', unit: '大さじ' },
 ];
 
-// 料理名パターン
+// 料理名パターン - 各カテゴリ25種類に拡張（合計100種類）
 const COOKING_PATTERNS = {
   japanese: [
+    // 基本の調理法
     { name: '炒め', verb: '炒める', emoji: '🍳' },
     { name: '煮', verb: '煮る', emoji: '🍲' },
     { name: '焼き', verb: '焼く', emoji: '🔥' },
     { name: '蒸し', verb: '蒸す', emoji: '♨️' },
     { name: '和え', verb: '和える', emoji: '🥢' },
     { name: '丼', verb: '盛り付ける', emoji: '🍚' },
+    // 味付け別
     { name: '味噌炒め', verb: '味噌で炒める', emoji: '🍳' },
     { name: '照り焼き', verb: '照り焼きにする', emoji: '🍗' },
     { name: '生姜焼き', verb: '生姜焼きにする', emoji: '🐷' },
@@ -131,8 +220,20 @@ const COOKING_PATTERNS = {
     { name: '南蛮', verb: '南蛮漬けにする', emoji: '🍗' },
     { name: 'きんぴら', verb: '炒め煮にする', emoji: '🥕' },
     { name: '塩焼き', verb: '塩で焼く', emoji: '🧂' },
+    // 追加の和風調理法
+    { name: '煮浸し', verb: '煮浸しにする', emoji: '🍲' },
+    { name: '柚子胡椒炒め', verb: '柚子胡椒で炒める', emoji: '🍋' },
+    { name: 'ごま和え', verb: 'ごまで和える', emoji: '🥢' },
+    { name: 'ポン酢和え', verb: 'ポン酢で和える', emoji: '🍊' },
+    { name: '梅煮', verb: '梅干しと煮る', emoji: '🍲' },
+    { name: 'わさび和え', verb: 'わさびで和える', emoji: '🥬' },
+    { name: '味噌煮', verb: '味噌で煮る', emoji: '🍲' },
+    { name: 'バター醤油炒め', verb: 'バター醤油で炒める', emoji: '🧈' },
+    { name: '酢の物', verb: '酢で和える', emoji: '🥒' },
+    { name: 'めんつゆ煮', verb: 'めんつゆで煮る', emoji: '🍜' },
   ],
   western: [
+    // 基本の調理法
     { name: 'ソテー', verb: 'ソテーする', emoji: '🍳' },
     { name: 'グリル', verb: 'グリルする', emoji: '🔥' },
     { name: 'パスタ', verb: 'パスタに和える', emoji: '🍝' },
@@ -146,8 +247,22 @@ const COOKING_PATTERNS = {
     { name: 'グラタン', verb: 'グラタンにする', emoji: '🧀' },
     { name: 'ピカタ', verb: 'ピカタにする', emoji: '🥚' },
     { name: 'マリネ', verb: 'マリネにする', emoji: '🥗' },
+    // 追加の洋風調理法
+    { name: 'ハーブ焼き', verb: 'ハーブで焼く', emoji: '🌿' },
+    { name: 'バルサミコ炒め', verb: 'バルサミコで炒める', emoji: '🍷' },
+    { name: 'アヒージョ風', verb: 'アヒージョ風に煮る', emoji: '🧄' },
+    { name: 'ペペロンチーノ風', verb: 'ペペロンチーノ風に炒める', emoji: '🌶️' },
+    { name: 'カルボナーラ風', verb: 'カルボナーラ風に和える', emoji: '🥚' },
+    { name: 'ビネガー炒め', verb: 'ビネガーで炒める', emoji: '🍋' },
+    { name: 'マスタード焼き', verb: 'マスタードで焼く', emoji: '🟡' },
+    { name: 'ワイン煮込み', verb: 'ワインで煮込む', emoji: '🍷' },
+    { name: 'レモンバター', verb: 'レモンバターで仕上げる', emoji: '🍋' },
+    { name: 'オリーブ炒め', verb: 'オリーブオイルで炒める', emoji: '🫒' },
+    { name: 'ケチャップ煮', verb: 'ケチャップで煮る', emoji: '🍅' },
+    { name: 'デミグラス煮', verb: 'デミグラスで煮込む', emoji: '🍖' },
   ],
   chinese: [
+    // 基本の中華
     { name: '中華炒め', verb: '中華風に炒める', emoji: '🥡' },
     { name: '回鍋肉風', verb: '回鍋肉風に炒める', emoji: '🐷' },
     { name: '青椒肉絲風', verb: '細切りで炒める', emoji: '🫑' },
@@ -158,8 +273,25 @@ const COOKING_PATTERNS = {
     { name: 'ピリ辛炒め', verb: '辛味をつけて炒める', emoji: '🌶️' },
     { name: 'XO醤炒め', verb: 'XO醤で炒める', emoji: '🥡' },
     { name: '中華風煮込み', verb: '中華風に煮込む', emoji: '🍲' },
+    // 追加の中華
+    { name: '甜麺醤炒め', verb: '甜麺醤で炒める', emoji: '🥡' },
+    { name: '豆板醤炒め', verb: '豆板醤で炒める', emoji: '🌶️' },
+    { name: 'エビチリ風', verb: 'エビチリ風に炒める', emoji: '🦐' },
+    { name: '酢豚風', verb: '酢豚風に炒める', emoji: '🐷' },
+    { name: '棒棒鶏風', verb: '棒棒鶏風に仕上げる', emoji: '🍗' },
+    { name: '油淋鶏風', verb: '油淋鶏風に仕上げる', emoji: '🍗' },
+    { name: '八宝菜風', verb: '八宝菜風に炒める', emoji: '🥬' },
+    { name: '花椒炒め', verb: '花椒で炒める', emoji: '🌶️' },
+    { name: '中華蒸し', verb: '中華風に蒸す', emoji: '♨️' },
+    { name: 'チンジャオ風', verb: 'チンジャオ風に炒める', emoji: '🫑' },
+    { name: '担々風', verb: '担々風に仕上げる', emoji: '🍜' },
+    { name: '五香粉炒め', verb: '五香粉で炒める', emoji: '🥢' },
+    { name: '香味炒め', verb: '香味野菜で炒める', emoji: '🧄' },
+    { name: '唐揚げ風', verb: '唐揚げ風に焼く', emoji: '🍗' },
+    { name: '塩炒め', verb: '塩味で炒める', emoji: '🧂' },
   ],
   asian: [
+    // 東南アジア
     { name: 'ナンプラー炒め', verb: 'ナンプラーで炒める', emoji: '🇹🇭' },
     { name: 'ガパオ風', verb: 'ガパオ風に炒める', emoji: '🌿' },
     { name: 'カレー炒め', verb: 'カレー風味に炒める', emoji: '🍛' },
@@ -167,9 +299,26 @@ const COOKING_PATTERNS = {
     { name: 'スイートチリ', verb: 'スイートチリで和える', emoji: '🌶️' },
     { name: 'サテ風', verb: 'サテ風に焼く', emoji: '🍢' },
     { name: 'レモングラス蒸し', verb: 'レモングラスで蒸す', emoji: '🍋' },
+    // 韓国風
     { name: 'チャプチェ風', verb: 'チャプチェ風に炒める', emoji: '🇰🇷' },
     { name: 'ビビンバ風', verb: 'ビビンバ風に盛る', emoji: '🍚' },
     { name: 'プルコギ風', verb: 'プルコギ風に焼く', emoji: '🥩' },
+    { name: 'コチュジャン炒め', verb: 'コチュジャンで炒める', emoji: '🌶️' },
+    { name: 'キムチ炒め', verb: 'キムチと炒める', emoji: '🥬' },
+    { name: 'チヂミ風', verb: 'チヂミ風に焼く', emoji: '🥞' },
+    { name: 'サムギョプサル風', verb: 'サムギョプサル風に焼く', emoji: '🐷' },
+    // 追加のアジアン
+    { name: 'トムヤム風', verb: 'トムヤム風に煮る', emoji: '🦐' },
+    { name: 'グリーンカレー風', verb: 'グリーンカレー風に煮る', emoji: '🍛' },
+    { name: 'パッタイ風', verb: 'パッタイ風に炒める', emoji: '🍝' },
+    { name: 'バインミー風', verb: 'バインミー風に仕上げる', emoji: '🥖' },
+    { name: 'フォー風', verb: 'フォー風に仕上げる', emoji: '🍜' },
+    { name: 'タンドリー風', verb: 'タンドリー風に焼く', emoji: '🍗' },
+    { name: 'サンバル炒め', verb: 'サンバルで炒める', emoji: '🌶️' },
+    { name: 'テリヤキアジアン', verb: 'アジアン照り焼きにする', emoji: '🍯' },
+    { name: 'ライム和え', verb: 'ライムで和える', emoji: '🍋' },
+    { name: 'パクチー添え', verb: 'パクチーを添える', emoji: '🌿' },
+    { name: 'ピーナッツ炒め', verb: 'ピーナッツと炒める', emoji: '🥜' },
   ],
 };
 
@@ -179,19 +328,61 @@ const TIME_PATTERNS = [5, 10, 15, 20, 25, 30];
 // 難易度
 const DIFFICULTIES: Array<'easy' | 'medium' | 'hard'> = ['easy', 'easy', 'easy', 'medium', 'medium', 'hard'];
 
-// タグパターン
-const TAG_PATTERNS = [
-  ['時短', 'スピード'],
-  ['弁当OK', '作り置き'],
-  ['ヘルシー', '低カロリー'],
-  ['がっつり', 'ボリューム'],
-  ['定番', '人気'],
-  ['節約', '簡単'],
-  ['野菜たっぷり'],
-  ['タンパク質'],
-  ['ご飯がすすむ'],
-  ['お酒に合う'],
-];
+// タグパターン - 大幅拡張版
+const TAG_PATTERNS = {
+  // 時間・簡単さ
+  quick: ['時短', 'スピード', '10分以内', '15分以内', 'パパッと'],
+  easy: ['簡単', '初心者向け', '失敗しない', '手軽', 'ズボラ飯'],
+
+  // 弁当・作り置き
+  bento: ['弁当OK', '作り置き', '冷めても美味しい', '翌日も◎', '冷凍OK'],
+
+  // ヘルシー・ダイエット系
+  healthy: ['ヘルシー', '低カロリー', 'ダイエット向け', 'カロリー控えめ', '罪悪感なし'],
+  lowCarb: ['低糖質', '糖質オフ', 'ロカボ', '糖質制限'],
+  highProtein: ['高タンパク', 'タンパク質豊富', '筋トレ飯', 'プロテイン補給'],
+
+  // ボリューム系
+  hearty: ['がっつり', 'ボリューム満点', '満腹', '食べ応え抜群', 'スタミナ'],
+
+  // 定番・人気
+  classic: ['定番', '人気', '王道', '間違いない', 'リピ確定'],
+
+  // 節約系
+  budget: ['節約', 'コスパ◎', '財布に優しい', '家計応援', '100円レシピ'],
+
+  // 野菜系
+  veggie: ['野菜たっぷり', '野菜不足解消', 'ベジタブル', '緑黄色野菜', '食物繊維'],
+
+  // お酒に合う系
+  wine: ['ワインに合う', '白ワインと', '赤ワインと', 'ワインのお供'],
+  beer: ['ビールに合う', 'ビールのお供', '居酒屋風', 'おつまみ'],
+  sake: ['日本酒に合う', '熱燗と', '冷酒と', '和のおつまみ'],
+  alcohol: ['お酒に合う', '晩酌に', 'おつまみ最適', '酒の肴'],
+
+  // シーン別
+  weeknight: ['平日夜に', '仕事帰りに', '疲れた日に', '帰宅後すぐ'],
+  weekend: ['週末ごはん', '休日ランチ', 'ブランチに'],
+  special: ['おもてなし', '記念日に', 'パーティー向け', '特別な日に', 'ホムパに'],
+  kids: ['子供が喜ぶ', 'キッズOK', '家族向け', '子供と一緒に'],
+
+  // 季節
+  summer: ['夏バテ防止', 'さっぱり', '冷たい', '夏向け'],
+  winter: ['あったか', '温まる', '冬の定番', '体ぽかぽか'],
+
+  // 料理ジャンル
+  japanese: ['和風', '家庭の味', 'おふくろの味', '昔ながら'],
+  western: ['洋風', 'カフェ風', 'おしゃれ', 'インスタ映え'],
+  asian: ['アジアン', 'エスニック', 'スパイシー', 'ピリ辛'],
+  chinese: ['中華風', '町中華', '本格中華'],
+
+  // その他
+  rice: ['ご飯がすすむ', '白米泥棒', 'おかわり必至', '丼にしても'],
+  comfort: ['ほっこり', '癒し系', '懐かしい味', 'ソウルフード'],
+};
+
+// タグパターンをフラット配列に変換（互換性用）
+const TAG_PATTERNS_FLAT = Object.values(TAG_PATTERNS).flat();
 
 // 栄養情報ベースデータ（100gあたり）
 const NUTRITION_DATA: Record<string, { calories: number; protein: number; fat: number; carbs: number }> = {
@@ -269,6 +460,51 @@ const NUTRITION_DATA: Record<string, { calories: number; protein: number; fat: n
   'ごぼう': { calories: 65, protein: 1.8, fat: 0.1, carbs: 15.4 },
   'たけのこ': { calories: 26, protein: 3.6, fat: 0.2, carbs: 4.3 },
   '水菜': { calories: 23, protein: 2.2, fat: 0.1, carbs: 4.8 },
+  // 新規追加 - 肉類
+  '鶏手羽元': { calories: 197, protein: 18, fat: 12, carbs: 0 },
+  '鶏手羽先': { calories: 211, protein: 17, fat: 14, carbs: 0 },
+  '鶏レバー': { calories: 111, protein: 18, fat: 3, carbs: 0.6 },
+  '豚肩ロース': { calories: 253, protein: 17, fat: 19, carbs: 0 },
+  '豚もも肉': { calories: 183, protein: 20, fat: 10, carbs: 0 },
+  '豚ヒレ肉': { calories: 115, protein: 22, fat: 1.9, carbs: 0.2 },
+  '牛もも肉': { calories: 182, protein: 21, fat: 9, carbs: 0 },
+  '牛バラ肉': { calories: 371, protein: 14, fat: 32, carbs: 0 },
+  // 新規追加 - 魚介類
+  'マグロ': { calories: 125, protein: 26, fat: 1.4, carbs: 0 },
+  'カツオ': { calories: 114, protein: 25, fat: 0.5, carbs: 0.1 },
+  'アジ': { calories: 121, protein: 20, fat: 3.5, carbs: 0.1 },
+  'サンマ': { calories: 310, protein: 18, fat: 24, carbs: 0.1 },
+  'イワシ': { calories: 217, protein: 19, fat: 13, carbs: 0.2 },
+  'ホッケ': { calories: 115, protein: 17, fat: 4, carbs: 0 },
+  'ホタテ': { calories: 72, protein: 13, fat: 0.9, carbs: 1.5 },
+  'カニカマ': { calories: 90, protein: 12, fat: 0.5, carbs: 9 },
+  'さんま缶': { calories: 225, protein: 18, fat: 15, carbs: 0 },
+  // 新規追加 - 大豆製品
+  '絹豆腐': { calories: 56, protein: 4.9, fat: 3, carbs: 2 },
+  '納豆': { calories: 200, protein: 16, fat: 10, carbs: 12 },
+  '温泉卵': { calories: 151, protein: 12, fat: 10, carbs: 0.3 },
+  'かまぼこ': { calories: 95, protein: 12, fat: 0.9, carbs: 9.7 },
+  'はんぺん': { calories: 94, protein: 9.9, fat: 1, carbs: 11.4 },
+  // 新規追加 - 野菜
+  '春菊': { calories: 22, protein: 2.3, fat: 0.3, carbs: 3.9 },
+  '三つ葉': { calories: 13, protein: 0.9, fat: 0.1, carbs: 2.9 },
+  'パセリ': { calories: 43, protein: 3.7, fat: 0.7, carbs: 6.3 },
+  'バジル': { calories: 24, protein: 3.1, fat: 0.6, carbs: 4 },
+  '豆苗': { calories: 27, protein: 3.8, fat: 0.4, carbs: 4 },
+  'カイワレ': { calories: 21, protein: 2.1, fat: 0.5, carbs: 3.3 },
+  '青ネギ': { calories: 31, protein: 1.5, fat: 0.2, carbs: 7 },
+  '万能ねぎ': { calories: 27, protein: 1.9, fat: 0.3, carbs: 5.5 },
+  '里芋': { calories: 58, protein: 1.5, fat: 0.1, carbs: 13.1 },
+  'かぶ': { calories: 20, protein: 0.7, fat: 0.1, carbs: 4.6 },
+  'とうもろこし': { calories: 92, protein: 3.6, fat: 1.7, carbs: 16.8 },
+  '枝豆': { calories: 135, protein: 11.7, fat: 6.2, carbs: 8.8 },
+  'スナップエンドウ': { calories: 43, protein: 3, fat: 0.2, carbs: 7.5 },
+  'いんげん': { calories: 23, protein: 1.8, fat: 0.1, carbs: 5.1 },
+  'マッシュルーム': { calories: 11, protein: 2.9, fat: 0.3, carbs: 0.1 },
+  'なめこ': { calories: 15, protein: 1.7, fat: 0.2, carbs: 5.4 },
+  'みょうが': { calories: 12, protein: 0.9, fat: 0.1, carbs: 2.6 },
+  'もずく': { calories: 4, protein: 0.2, fat: 0.1, carbs: 1.4 },
+  'めかぶ': { calories: 11, protein: 0.9, fat: 0.6, carbs: 3.4 },
 };
 
 // 調理法による栄養変化係数
@@ -813,16 +1049,125 @@ export const generateRecipes = (count: number): Recipe[] => {
     const seasoningNames = seasonings.map(s => s.name);
 
     const name = `${protein.name}と${vegetables[0].name}の${pattern.name}`;
-    const tags = getRandomItems(TAG_PATTERNS, 2).flat();
-    if (time <= 15) tags.push('時短');
-    if (difficulty === 'easy') tags.push('簡単');
 
     // 栄養情報を生成
     const nutrition = generateNutrition(protein, vegetables, pattern.name);
 
-    // ヘルシー・低カロリータグの追加
-    if (nutrition.calories < 300) tags.push('低カロリー');
-    if (nutrition.protein > 25) tags.push('高タンパク');
+    // スマートなタグ割り当て
+    const tags: string[] = [];
+
+    // 時間・簡単さ系タグ
+    if (time <= 10) {
+      tags.push(getRandomItem(TAG_PATTERNS.quick));
+    } else if (time <= 15) {
+      tags.push('時短');
+    }
+    if (difficulty === 'easy') {
+      tags.push(getRandomItem(TAG_PATTERNS.easy));
+    }
+
+    // 弁当・作り置き
+    if (Math.random() > 0.5) {
+      tags.push(getRandomItem(TAG_PATTERNS.bento));
+    }
+
+    // ヘルシー・ダイエット系（栄養情報ベース）
+    if (nutrition.calories < 300) {
+      tags.push(getRandomItem(TAG_PATTERNS.healthy));
+    }
+    if (nutrition.carbohydrates < 20) {
+      tags.push(getRandomItem(TAG_PATTERNS.lowCarb));
+    }
+    if (nutrition.protein > 25) {
+      tags.push(getRandomItem(TAG_PATTERNS.highProtein));
+    }
+
+    // ボリューム系
+    if (nutrition.calories > 500 || protein.name.includes('豚バラ') || protein.name.includes('牛')) {
+      tags.push(getRandomItem(TAG_PATTERNS.hearty));
+    }
+
+    // 野菜たっぷり
+    if (vegetables.length >= 3) {
+      tags.push(getRandomItem(TAG_PATTERNS.veggie));
+    }
+
+    // お酒に合う系（料理タイプと食材ベース）
+    const isGoodWithAlcohol =
+      pattern.name.includes('焼き') ||
+      pattern.name.includes('炒め') ||
+      protein.name.includes('ベーコン') ||
+      protein.name.includes('エビ') ||
+      protein.name.includes('イカ') ||
+      protein.name.includes('タコ');
+
+    if (isGoodWithAlcohol) {
+      // ランダムにお酒の種類を選択
+      const alcoholType = Math.random();
+      if (alcoholType < 0.25) {
+        tags.push(getRandomItem(TAG_PATTERNS.wine));
+      } else if (alcoholType < 0.5) {
+        tags.push(getRandomItem(TAG_PATTERNS.beer));
+      } else if (alcoholType < 0.75 && category === 'japanese') {
+        tags.push(getRandomItem(TAG_PATTERNS.sake));
+      } else {
+        tags.push(getRandomItem(TAG_PATTERNS.alcohol));
+      }
+    }
+
+    // カテゴリー別タグ
+    if (category === 'japanese') {
+      tags.push(getRandomItem(TAG_PATTERNS.japanese));
+    } else if (category === 'western') {
+      tags.push(getRandomItem(TAG_PATTERNS.western));
+    } else if (category === 'chinese') {
+      tags.push(getRandomItem(TAG_PATTERNS.chinese));
+    } else if (category === 'asian') {
+      tags.push(getRandomItem(TAG_PATTERNS.asian));
+    }
+
+    // シーン別タグ（ランダム）
+    const sceneRandom = Math.random();
+    if (sceneRandom < 0.3 && time <= 20) {
+      tags.push(getRandomItem(TAG_PATTERNS.weeknight));
+    } else if (sceneRandom < 0.4) {
+      tags.push(getRandomItem(TAG_PATTERNS.weekend));
+    } else if (sceneRandom < 0.5 && pattern.name.includes('チーズ') || pattern.name.includes('グラタン')) {
+      tags.push(getRandomItem(TAG_PATTERNS.special));
+    } else if (sceneRandom < 0.6) {
+      tags.push(getRandomItem(TAG_PATTERNS.kids));
+    }
+
+    // 季節タグ（ランダム）
+    if (Math.random() < 0.2) {
+      const seasonRandom = Math.random();
+      if (seasonRandom < 0.5) {
+        tags.push(getRandomItem(TAG_PATTERNS.summer));
+      } else {
+        tags.push(getRandomItem(TAG_PATTERNS.winter));
+      }
+    }
+
+    // 定番・人気タグ（一部に付与）
+    if (Math.random() < 0.3) {
+      tags.push(getRandomItem(TAG_PATTERNS.classic));
+    }
+
+    // 節約タグ（安い食材ベース）
+    const cheapProteins = ['豆腐', '卵', 'もやし', 'ちくわ', '厚揚げ', '油揚げ', '鶏むね肉', '鶏ひき肉'];
+    if (cheapProteins.includes(protein.name) || vegetables.some(v => v.name === 'もやし')) {
+      tags.push(getRandomItem(TAG_PATTERNS.budget));
+    }
+
+    // ご飯系タグ
+    if (pattern.name.includes('丼') || pattern.name.includes('炒め') || Math.random() < 0.2) {
+      tags.push(getRandomItem(TAG_PATTERNS.rice));
+    }
+
+    // 癒し系タグ
+    if (pattern.name.includes('煮') || pattern.name.includes('蒸し') || Math.random() < 0.15) {
+      tags.push(getRandomItem(TAG_PATTERNS.comfort));
+    }
 
     const recipe: Recipe = {
       id: `recipe-gen-${i + 1}`,
@@ -847,5 +1192,5 @@ export const generateRecipes = (count: number): Recipe[] => {
   return recipes;
 };
 
-// 3000個のレシピを生成してエクスポート
-export const GENERATED_RECIPES: Recipe[] = generateRecipes(3000);
+// 50000個のレシピを生成してエクスポート
+export const GENERATED_RECIPES: Recipe[] = generateRecipes(50000);

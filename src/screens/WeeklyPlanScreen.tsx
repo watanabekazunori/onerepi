@@ -25,9 +25,10 @@ import {
   Settings,
   Play,
   Calendar,
+  Utensils,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { RootStackParamList, WeeklyPlan, WeekDay, DayOfWeek } from '../types';
+import { RootStackParamList, WeeklyPlan, WeekDay, DayOfWeek, Recipe } from '../types';
 import {
   getCurrentWeekPlan,
   convertToWeeklyPlans,
@@ -35,6 +36,7 @@ import {
   AdvancePrepHint,
 } from '../lib/storage';
 import { supabaseService, UserProfile } from '../lib/supabase-service';
+import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
 
 // Brand Colors
 const brandColors = {
@@ -97,6 +99,10 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
   const [advancePrepHints, setAdvancePrepHints] = useState<AdvancePrepHint[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+
+  // もう一品インライン表示用のstate
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+  const [sideDishSuggestion, setSideDishSuggestion] = useState<SideDishSuggestion | null>(null);
 
   const weekDays = useMemo(() => generateWeekDays(), []);
 
@@ -214,6 +220,36 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
   const handleStartDraftMeeting = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate('DraftMeeting', { weekStart: weekDays[0].dateString });
+  };
+
+  // もう一品提案をトグル（インライン表示）
+  const handleToggleSideDish = (planId: string, mainRecipe: Recipe) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (expandedPlanId === planId) {
+      // 閉じる
+      setExpandedPlanId(null);
+      setSideDishSuggestion(null);
+    } else {
+      // 開く - 1つだけ提案
+      const suggestions = suggestSideDishes(mainRecipe, 1);
+      setExpandedPlanId(planId);
+      setSideDishSuggestion(suggestions[0] || null);
+    }
+  };
+
+  // 別の提案を見る
+  const handleRefreshSideDish = (mainRecipe: Recipe) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const suggestions = suggestSideDishes(mainRecipe, 1);
+    setSideDishSuggestion(suggestions[0] || null);
+  };
+
+  // 副菜を選択
+  const handleSelectSideDish = (recipe: Recipe) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setExpandedPlanId(null);
+    navigation.navigate('RecipeDetail', { recipeId: recipe.id });
   };
 
   const getGreeting = () => {
@@ -437,13 +473,74 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
                     </View>
                     <ChevronRight size={20} color={brandColors.textMuted} />
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cookNowButton}
-                    onPress={() => handlePlanPress(plan)}
-                  >
-                    <Play size={16} color={brandColors.white} fill={brandColors.white} />
-                    <Text style={styles.cookNowText}>作る</Text>
-                  </TouchableOpacity>
+                  <View style={styles.mealCardActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sideDishButton,
+                        expandedPlanId === plan.id && styles.sideDishButtonActive
+                      ]}
+                      onPress={() => plan.recipe && handleToggleSideDish(plan.id, plan.recipe)}
+                    >
+                      <Utensils size={14} color={expandedPlanId === plan.id ? brandColors.white : brandColors.primary} />
+                      <Text style={[
+                        styles.sideDishButtonText,
+                        expandedPlanId === plan.id && styles.sideDishButtonTextActive
+                      ]}>
+                        {expandedPlanId === plan.id ? '閉じる' : 'もう一品'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.cookNowButtonSmall}
+                      onPress={() => handlePlanPress(plan)}
+                    >
+                      <Play size={14} color={brandColors.white} fill={brandColors.white} />
+                      <Text style={styles.cookNowTextSmall}>作る</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* インライン副菜提案 */}
+                  {expandedPlanId === plan.id && sideDishSuggestion && (
+                    <View style={styles.inlineSideDish}>
+                      <Text style={styles.inlineSideDishLabel}>
+                        🍽️ こちらはいかが？
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.inlineSideDishCard}
+                        onPress={() => handleSelectSideDish(sideDishSuggestion.recipe)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.inlineSideDishEmoji}>
+                          <Text style={styles.inlineSideDishEmojiText}>
+                            {sideDishSuggestion.recipe.emoji}
+                          </Text>
+                        </View>
+                        <View style={styles.inlineSideDishInfo}>
+                          <Text style={styles.inlineSideDishName}>
+                            {sideDishSuggestion.recipe.name}
+                          </Text>
+                          <View style={styles.inlineSideDishMeta}>
+                            <View style={styles.inlineSideDishReason}>
+                              <Sparkles size={10} color={brandColors.primary} />
+                              <Text style={styles.inlineSideDishReasonText}>
+                                {sideDishSuggestion.reason}
+                              </Text>
+                            </View>
+                            <Text style={styles.inlineSideDishTime}>
+                              {sideDishSuggestion.recipe.cooking_time_minutes}分
+                            </Text>
+                          </View>
+                        </View>
+                        <ChevronRight size={16} color={brandColors.textMuted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.refreshButton}
+                        onPress={() => plan.recipe && handleRefreshSideDish(plan.recipe)}
+                      >
+                        <Sparkles size={14} color={brandColors.primary} />
+                        <Text style={styles.refreshButtonText}>別の提案を見る</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))
             ) : (
@@ -829,20 +926,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: brandColors.primary,
   },
-  cookNowButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: brandColors.primary,
-    paddingVertical: 14,
-    gap: 6,
-  },
-  cookNowText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: brandColors.white,
-  },
-
   // Empty Day Card
   emptyDayCard: {
     backgroundColor: brandColors.white,
@@ -974,5 +1057,125 @@ const styles = StyleSheet.create({
 
   bottomSpacer: {
     height: 20,
+  },
+
+  // Meal Card Actions (もう一品ボタン追加)
+  mealCardActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: brandColors.border,
+  },
+  sideDishButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 6,
+    borderRightWidth: 1,
+    borderRightColor: brandColors.border,
+  },
+  sideDishButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.primary,
+  },
+  cookNowButtonSmall: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brandColors.primary,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  cookNowTextSmall: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: brandColors.white,
+  },
+  sideDishButtonActive: {
+    backgroundColor: brandColors.primary,
+  },
+  sideDishButtonTextActive: {
+    color: brandColors.white,
+  },
+
+  // Inline Side Dish Suggestion
+  inlineSideDish: {
+    backgroundColor: brandColors.primarySoft,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: brandColors.border,
+  },
+  inlineSideDishLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
+    marginBottom: 12,
+  },
+  inlineSideDishCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.white,
+    borderRadius: 14,
+    padding: 12,
+  },
+  inlineSideDishEmoji: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: brandColors.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  inlineSideDishEmojiText: {
+    fontSize: 22,
+  },
+  inlineSideDishInfo: {
+    flex: 1,
+  },
+  inlineSideDishName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.text,
+    marginBottom: 4,
+  },
+  inlineSideDishMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inlineSideDishReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: brandColors.primarySoft,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  inlineSideDishReasonText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: brandColors.primary,
+  },
+  inlineSideDishTime: {
+    fontSize: 11,
+    color: brandColors.textMuted,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  refreshButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.primary,
   },
 });

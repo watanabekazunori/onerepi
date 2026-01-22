@@ -30,6 +30,12 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
 import { supabaseService, CookingFeedback } from '../lib/supabase-service';
+import { MOCK_RECIPES } from '../lib/mockData';
+import {
+  createFeedbackFromRecipe,
+  saveFeedback,
+  CookingFeedback as PreferenceFeedback,
+} from '../lib/preferenceLearner';
 
 // Brand Colors
 const brandColors = {
@@ -139,6 +145,7 @@ export const CookingFeedbackScreen: React.FC<CookingFeedbackScreenProps> = ({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
+      // Supabase用のフィードバック（既存）
       const feedback: Omit<CookingFeedback, 'id' | 'user_id' | 'created_at'> = {
         recipe_id: recipeId,
         rating: overallRating,
@@ -151,6 +158,46 @@ export const CookingFeedbackScreen: React.FC<CookingFeedbackScreenProps> = ({
       };
 
       await supabaseService.saveCookingFeedback(feedback);
+
+      // 好み学習用のフィードバックも保存
+      const recipe = MOCK_RECIPES.find((r) => r.id === recipeId);
+      if (recipe) {
+        // 味のコメントを決定
+        let tasteComment: PreferenceFeedback['tasteComment'] = undefined;
+        if (tasteRating === 5) {
+          tasteComment = 'perfect';
+        } else if (tasteRating <= 2 && notes.includes('しょっぱ')) {
+          tasteComment = 'too_salty';
+        } else if (tasteRating <= 2 && notes.includes('薄')) {
+          tasteComment = 'too_bland';
+        } else if (tasteRating <= 2 && notes.includes('辛')) {
+          tasteComment = 'too_spicy';
+        } else if (tasteRating <= 2 && notes.includes('甘')) {
+          tasteComment = 'too_sweet';
+        }
+
+        // 難易度のコメントを決定
+        let difficultyComment: PreferenceFeedback['difficultyComment'] = undefined;
+        if (difficultyRating >= 4) {
+          difficultyComment = 'easy';
+        } else if (difficultyRating === 3) {
+          difficultyComment = 'just_right';
+        } else if (difficultyRating <= 2 && difficultyRating > 0) {
+          difficultyComment = 'difficult';
+        }
+
+        // 好み学習用のフィードバックを作成
+        const preferenceFeedback = createFeedbackFromRecipe(
+          recipe,
+          overallRating,
+          wouldMakeAgain ?? false
+        );
+        preferenceFeedback.tasteComment = tasteComment;
+        preferenceFeedback.difficultyComment = difficultyComment;
+
+        // 保存して学習（saveFeedback内部でupdateLearnedPreferencesが呼ばれる）
+        await saveFeedback(preferenceFeedback);
+      }
 
       Alert.alert(
         'ありがとうございます！',

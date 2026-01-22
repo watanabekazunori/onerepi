@@ -2884,93 +2884,82 @@ const getDateString = (daysFromToday: number) => {
   return date.toISOString().split('T')[0];
 };
 
-// 1週間の献立サンプル（食材使い回し考慮）
-export const MOCK_WEEKLY_PLANS: WeeklyPlan[] = [
-  {
-    id: 'plan-1',
-    user_id: 'user-1',
-    date: getDateString(0), // 今日 - 月曜
-    recipe_id: 'recipe-1',
-    recipe: CURATED_RECIPES[0], // ガパオライス（鶏ひき肉、玉ねぎ）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-2',
-    user_id: 'user-1',
-    date: getDateString(1), // 火曜
-    recipe_id: 'recipe-5',
-    recipe: CURATED_RECIPES[4], // 豚キムチ丼（豚バラ、もやし）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-3',
-    user_id: 'user-1',
-    date: getDateString(2), // 水曜
-    recipe_id: 'recipe-2',
-    recipe: CURATED_RECIPES[1], // 鶏そぼろ丼（鶏ひき肉使い回し、卵）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-4',
-    user_id: 'user-1',
-    date: getDateString(3), // 木曜
-    recipe_id: 'recipe-7',
-    recipe: CURATED_RECIPES[6], // 回鍋肉（豚バラ使い回し、キャベツ）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-5',
-    user_id: 'user-1',
-    date: getDateString(4), // 金曜
-    recipe_id: 'recipe-8',
-    recipe: CURATED_RECIPES[7], // 豚肉ともやしの塩だれ炒め（豚バラ、もやし使い回し）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-6',
-    user_id: 'user-1',
-    date: getDateString(5), // 土曜
-    recipe_id: 'recipe-9',
-    recipe: CURATED_RECIPES[8], // オムライス（卵使い回し、玉ねぎ、鶏肉）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'plan-7',
-    user_id: 'user-1',
-    date: getDateString(6), // 日曜
-    recipe_id: 'recipe-15',
-    recipe: CURATED_RECIPES[14], // 鮭のちゃんちゃん焼き（キャベツ、もやし使い回し）
-    meal_type: 'dinner',
-    status: 'planned',
-    scale_factor: 1.0,
-    is_for_bento: false,
-    created_at: new Date().toISOString(),
-  },
-];
+// 1週間の献立を動的に生成（重複なし）
+const generateMockWeeklyPlans = (): WeeklyPlan[] => {
+  const usedRecipeIds = new Set<string>();
+  const plans: WeeklyPlan[] = [];
+  const dayLabels = ['月', '火', '水', '木', '金', '土', '日'];
+
+  // カテゴリのバランスを考慮
+  const categoryOrder: ('japanese' | 'western' | 'chinese' | 'asian')[] = [
+    'asian', 'chinese', 'japanese', 'chinese', 'western', 'japanese', 'asian'
+  ];
+
+  // タンパク質グループの追跡（連続を避ける）
+  let lastProteinGroup = '';
+
+  for (let i = 0; i < 7; i++) {
+    const preferredCategory = categoryOrder[i];
+
+    // 候補レシピを取得（まだ使っていないもの）
+    let candidates = MOCK_RECIPES.filter(r =>
+      !usedRecipeIds.has(r.id) &&
+      r.category === preferredCategory
+    );
+
+    // 候補が少なければカテゴリ制限を緩める
+    if (candidates.length < 10) {
+      candidates = MOCK_RECIPES.filter(r => !usedRecipeIds.has(r.id));
+    }
+
+    // タンパク質グループで絞り込み（連続を避ける）
+    const getProteinGroup = (recipe: Recipe): string => {
+      const names = recipe.ingredients.map(ing => ing.name);
+      if (names.some(n => n.includes('鶏'))) return 'chicken';
+      if (names.some(n => n.includes('豚'))) return 'pork';
+      if (names.some(n => n.includes('牛'))) return 'beef';
+      if (names.some(n => ['鮭', 'サバ', 'ブリ', 'タラ'].some(f => n.includes(f)))) return 'fish';
+      if (names.some(n => ['エビ', 'イカ', 'タコ'].some(f => n.includes(f)))) return 'seafood';
+      if (names.some(n => n.includes('卵'))) return 'egg';
+      if (names.some(n => n.includes('豆腐') || n.includes('厚揚げ'))) return 'tofu';
+      return 'other';
+    };
+
+    // 前日と同じタンパク質を避ける
+    if (lastProteinGroup) {
+      const diverseCandidates = candidates.filter(r => getProteinGroup(r) !== lastProteinGroup);
+      if (diverseCandidates.length >= 5) {
+        candidates = diverseCandidates;
+      }
+    }
+
+    // ランダムに選択（上位50件から）
+    const topCandidates = candidates.slice(0, 50);
+    const selectedIndex = Math.floor(Math.random() * topCandidates.length);
+    const selectedRecipe = topCandidates[selectedIndex] || MOCK_RECIPES[i];
+
+    usedRecipeIds.add(selectedRecipe.id);
+    lastProteinGroup = getProteinGroup(selectedRecipe);
+
+    plans.push({
+      id: `plan-${i + 1}`,
+      user_id: 'user-1',
+      date: getDateString(i),
+      recipe_id: selectedRecipe.id,
+      recipe: selectedRecipe,
+      meal_type: 'dinner',
+      status: 'planned',
+      scale_factor: 1.0,
+      is_for_bento: i === 2 || i === 3, // 水・木は弁当向き
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  return plans;
+};
+
+// 1週間の献立サンプル（動的生成、重複なし）
+export const MOCK_WEEKLY_PLANS: WeeklyPlan[] = generateMockWeeklyPlans();
 
 // ============ Mock Cooking Logs ============
 
