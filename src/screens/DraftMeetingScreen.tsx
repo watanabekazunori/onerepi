@@ -33,7 +33,7 @@ import {
   findRecipesWithSharedIngredients,
 } from '../lib/mockData';
 import { ChatBubble } from '../components/chat/ChatBubble';
-import { saveWeeklyPlan, StoredWeeklyPlan, getUserPreferences, UserPreferences } from '../lib/storage';
+import { saveWeeklyPlan, StoredWeeklyPlan, getUserPreferences, UserPreferences, getWeeklyPlans } from '../lib/storage';
 import { colors, spacing, borderRadius } from '../lib/theme';
 import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
 
@@ -96,6 +96,8 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
 
   // ユーザー設定（苦手食材・アレルギー）
   const [userPrefs, setUserPrefs] = useState<UserPreferences | null>(null);
+  // 最近使ったレシピID（重複防止）
+  const [recentRecipeIds, setRecentRecipeIds] = useState<Set<string>>(new Set());
 
   const flatListRef = useRef<FlatList>(null);
   const fadeAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
@@ -103,6 +105,7 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   // Initialize welcome messages and load user preferences
   useEffect(() => {
     loadUserPreferences();
+    loadRecentRecipes();
     showWelcomeMessages();
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -115,6 +118,33 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   const loadUserPreferences = async () => {
     const prefs = await getUserPreferences();
     setUserPrefs(prefs);
+  };
+
+  // 最近2週間のレシピIDを取得（重複防止用）
+  const loadRecentRecipes = async () => {
+    try {
+      const plans = await getWeeklyPlans();
+      const recentIds = new Set<string>();
+
+      // 最近2週間分の献立からレシピIDを収集
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      plans.forEach(plan => {
+        const planDate = new Date(plan.weekStart);
+        if (planDate >= twoWeeksAgo) {
+          Object.values(plan.plans).forEach(dayPlan => {
+            if (dayPlan?.recipeId) {
+              recentIds.add(dayPlan.recipeId);
+            }
+          });
+        }
+      });
+
+      setRecentRecipeIds(recentIds);
+    } catch (error) {
+      console.error('Failed to load recent recipes:', error);
+    }
   };
 
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -291,6 +321,11 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     // レシピプールを作成
     let recipePool = [...MOCK_RECIPES];
 
+    // 【重要】最近2週間で使ったレシピを除外（同じ献立が出ないように）
+    if (recentRecipeIds.size > 0) {
+      recipePool = recipePool.filter(r => !recentRecipeIds.has(r.id));
+    }
+
     // 【重要】苦手食材・アレルギーを除外
     if (userPrefs) {
       const dislikedKeywords = userPrefs.dislikes || [];
@@ -415,13 +450,17 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       ...recipePool.filter(r => !priorityRecipes.some(pr => pr.id === r.id)),
     ];
 
+    // レシピプールをシャッフル（ランダム性を高める）
+    const shuffledPool = [...recipePool].sort(() => Math.random() - 0.5);
+
     // 各曜日にレシピを割り当て
     DAYS_ORDER.forEach((day) => {
-      const availableRecipes = recipePool.filter(r => !usedRecipeIds.has(r.id));
+      const availableRecipes = shuffledPool.filter(r => !usedRecipeIds.has(r.id));
 
       if (availableRecipes.length > 0) {
-        // ランダム性を少し加える
-        const index = Math.floor(Math.random() * Math.min(3, availableRecipes.length));
+        // 上位10件からランダムに選択（バリエーションを増やす）
+        const topCount = Math.min(10, availableRecipes.length);
+        const index = Math.floor(Math.random() * topCount);
         const recipe = availableRecipes[index];
         plan[day] = recipe;
         usedRecipeIds.add(recipe.id);
@@ -431,9 +470,17 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
           ingredientCount[ing.name] = (ingredientCount[ing.name] || 0) + 1;
         });
       } else {
-        // 足りない場合はリセットして再利用
-        const index = Math.floor(Math.random() * recipePool.length);
-        plan[day] = recipePool[index];
+        // 足りない場合は全レシピからランダムに選択
+        const allAvailable = MOCK_RECIPES.filter(r => !usedRecipeIds.has(r.id));
+        if (allAvailable.length > 0) {
+          const index = Math.floor(Math.random() * allAvailable.length);
+          plan[day] = allAvailable[index];
+          usedRecipeIds.add(allAvailable[index].id);
+        } else {
+          // 本当に足りない場合のみ再利用
+          const index = Math.floor(Math.random() * recipePool.length);
+          plan[day] = recipePool[index];
+        }
       }
     });
 

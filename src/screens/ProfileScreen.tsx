@@ -40,6 +40,8 @@ import {
   PiggyBank,
   Beef,
   Check,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList, Profile, KitchenEquipment } from '../types';
@@ -336,6 +338,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <Text style={styles.menuBadge}>{favoritesCount}個</Text>
                 <ChevronRight size={20} color={colors.textMuted} />
               </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate('Onboarding')}
+            >
+              <View style={styles.menuLeft}>
+                <Sparkles size={20} color="#FFB800" />
+                <Text style={styles.menuLabel}>好み診断をやり直す</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>

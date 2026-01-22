@@ -425,15 +425,15 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
 
     await delay(300);
 
-    // Handle "other_input" option - show text input
+    // Handle "other_input" option - show text input for free-form entry
     if (option.value === 'other_input') {
       if (currentStep === 'health_goals') {
-        // 苦手食材の「その他」→ フリー入力
+        // 苦手食材の「その他」→ まず苦手食材詳細入力へ
         setCurrentStep('dislikes_detail');
         await showStepMessages('dislikes_detail');
         return;
       } else if (currentStep === 'dislikes') {
-        // アレルギーの「その他」→ フリー入力
+        // アレルギーの「その他」→ アレルギー詳細入力へ
         setCurrentStep('allergy_detail');
         await showStepMessages('allergy_detail');
         return;
