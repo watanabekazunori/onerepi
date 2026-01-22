@@ -172,11 +172,11 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   const showWeeklyThemeQuestion = async () => {
     await addMessage({
       type: 'ai',
-      content: '了解！週間の組み立て方を選んでね。',
+      content: '了解！週間のテーマを選んでね。\n（※ どれを選んでも食材の使い回しを考慮して献立を作るよ！）',
       options: [
         { id: 'theme_variety', label: '毎日違う味', value: 'variety', emoji: '🌈' },
-        { id: 'theme_reuse', label: '食材使い回し', value: 'reuse', emoji: '♻️' },
-        { id: 'theme_prep', label: '作り置き活用', value: 'prep', emoji: '📦' },
+        { id: 'theme_quick', label: '時短重視', value: 'quick', emoji: '⚡' },
+        { id: 'theme_healthy', label: 'ヘルシー志向', value: 'healthy', emoji: '🥗' },
         { id: 'theme_simple', label: 'シンプル献立', value: 'simple', emoji: '✨' },
       ],
     });
@@ -301,46 +301,57 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       });
     }
 
-    // 食材使い回しモードの場合、共通食材を持つレシピを優先
-    if (weeklyTheme === 'reuse' || weeklyTheme === 'prep') {
-      // 共通食材を多く持つレシピをグループ化
-      const ingredientGroups: Record<string, Recipe[]> = {};
-
-      recipePool.forEach(recipe => {
-        recipe.ingredients.forEach(ing => {
-          if (ing.category === 'protein' || ing.category === 'vegetable') {
-            if (!ingredientGroups[ing.name]) {
-              ingredientGroups[ing.name] = [];
-            }
-            ingredientGroups[ing.name].push(recipe);
-          }
-        });
+    // 週間テーマによる追加フィルタリング
+    if (weeklyTheme === 'quick') {
+      // 時短重視：調理時間が短いものを優先
+      recipePool.sort((a, b) => a.cooking_time_minutes - b.cooking_time_minutes);
+    } else if (weeklyTheme === 'healthy') {
+      // ヘルシー志向：ヘルシータグがあるものを優先
+      recipePool.sort((a, b) => {
+        const aHealthy = a.tags.some(t => t.includes('ヘルシー') || t.includes('野菜')) ? 1 : 0;
+        const bHealthy = b.tags.some(t => t.includes('ヘルシー') || t.includes('野菜')) ? 1 : 0;
+        return bHealthy - aHealthy;
       });
-
-      // 2つ以上のレシピで使える食材を見つける
-      const reusableIngredients = Object.entries(ingredientGroups)
-        .filter(([_, recipes]) => recipes.length >= 2)
-        .sort((a, b) => b[1].length - a[1].length);
-
-      // 使い回し食材を記録
-      const sharedIngs = reusableIngredients.slice(0, 5).map(([name]) => name);
-
-      // 使い回し可能なレシピを優先的に選択
-      const priorityRecipes: Recipe[] = [];
-      reusableIngredients.slice(0, 3).forEach(([_, recipes]) => {
-        recipes.forEach(r => {
-          if (!priorityRecipes.some(pr => pr.id === r.id)) {
-            priorityRecipes.push(r);
-          }
-        });
-      });
-
-      // レシピプールを再構成
-      recipePool = [
-        ...priorityRecipes,
-        ...recipePool.filter(r => !priorityRecipes.some(pr => pr.id === r.id)),
-      ];
     }
+
+    // 【重要】全ての献立で食材使い回しを基本とする
+    // 共通食材を多く持つレシピをグループ化
+    const ingredientGroups: Record<string, Recipe[]> = {};
+
+    recipePool.forEach(recipe => {
+      recipe.ingredients.forEach(ing => {
+        if (ing.category === 'protein' || ing.category === 'vegetable') {
+          if (!ingredientGroups[ing.name]) {
+            ingredientGroups[ing.name] = [];
+          }
+          ingredientGroups[ing.name].push(recipe);
+        }
+      });
+    });
+
+    // 2つ以上のレシピで使える食材を見つける
+    const reusableIngredients = Object.entries(ingredientGroups)
+      .filter(([_, recipes]) => recipes.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length);
+
+    // 使い回し食材を記録（後でUI表示に使用）
+    const sharedIngs = reusableIngredients.slice(0, 5).map(([name]) => name);
+
+    // 使い回し可能なレシピを優先的に選択
+    const priorityRecipes: Recipe[] = [];
+    reusableIngredients.slice(0, 3).forEach(([_, recipes]) => {
+      recipes.forEach(r => {
+        if (!priorityRecipes.some(pr => pr.id === r.id)) {
+          priorityRecipes.push(r);
+        }
+      });
+    });
+
+    // レシピプールを再構成（使い回しレシピを前に）
+    recipePool = [
+      ...priorityRecipes,
+      ...recipePool.filter(r => !priorityRecipes.some(pr => pr.id === r.id)),
+    ];
 
     // 各曜日にレシピを割り当て
     DAYS_ORDER.forEach((day) => {
@@ -610,10 +621,12 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
           })}
         </ScrollView>
 
-        {/* 使い回し食材表示 */}
+        {/* 使い回し食材表示（週を通して使う食材） */}
         {sharedIngredients.length > 0 && (
           <View style={styles.sharedIngredientsContainer}>
-            <Text style={styles.sharedIngredientsTitle}>♻️ 使い回し食材</Text>
+            <Text style={styles.sharedIngredientsTitle}>
+              ♻️ 今週の使い回し食材（まとめ買いがお得！）
+            </Text>
             <View style={styles.sharedIngredientsTags}>
               {sharedIngredients.map((ing, index) => (
                 <View key={index} style={styles.ingredientTag}>
@@ -621,6 +634,9 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
                 </View>
               ))}
             </View>
+            <Text style={styles.sharedIngredientsNote}>
+              ↑ これらの食材は複数の献立で使うので無駄なく使えるよ！
+            </Text>
           </View>
         )}
 
@@ -866,17 +882,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Shared Ingredients
+  // Shared Ingredients（使い回し食材 - 目立つように）
   sharedIngredientsContainer: {
     marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    padding: spacing.md,
+    backgroundColor: '#E8F5E9', // 薄い緑背景
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderStyle: 'dashed',
   },
   sharedIngredientsTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2E7D32', // 濃い緑
     marginBottom: spacing.sm,
   },
   sharedIngredientsTags: {
@@ -885,15 +904,21 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   ingredientTag: {
-    backgroundColor: colors.primaryLight + '30',
+    backgroundColor: '#4CAF50',
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: borderRadius.full,
   },
   ingredientTagText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
+    fontSize: 13,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  sharedIngredientsNote: {
+    fontSize: 11,
+    color: '#388E3C',
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
   },
 
   // Action Buttons
