@@ -106,17 +106,17 @@ export const getMockAIResponse = async (
   const lowerMessage = userMessage.toLowerCase();
 
   // Simple pattern matching for demo
-  if (lowerMessage.includes('疲れ') || lowerMessage.includes('ゾンビ') || lowerMessage.includes('だるい')) {
+  if (lowerMessage.includes('疲れ') || lowerMessage.includes('ゾンビ') || lowerMessage.includes('だるい') || lowerMessage.includes('気力がない') || lowerMessage.includes('楽ちん')) {
     return {
-      content: '疲れてる時は無理しないでね！🍳 10分以内で作れるガパオライスがおすすめだよ。フライパン一つでパパッと作れて、元気が出る味だよ！',
+      content: '疲れてる日は無理しないで〜！😌💕\n\n洗い物も少なくて超かんたんなレシピを選んだよ：\n\n✨ フライパン1つで完結\n✨ 調理10分以内\n✨ 洗い物最小限\n\nこれなら疲れてても大丈夫！',
       suggestedRecipes: [MOCK_RECIPES[0], MOCK_RECIPES[1]],
     };
   }
 
-  if (lowerMessage.includes('時間ない') || lowerMessage.includes('急いで') || lowerMessage.includes('早く')) {
+  if (lowerMessage.includes('時間ない') || lowerMessage.includes('急いで') || lowerMessage.includes('早く') || lowerMessage.includes('10分') || lowerMessage.includes('スピード')) {
     return {
-      content: '時間がない時はこれ！⚡ 豚キムチ丼なら10分で完成するよ。キムチの酸味で食欲もアップ！',
-      suggestedRecipes: [MOCK_RECIPES[1]],
+      content: '時間がない時はおまかせ！⚡\n\n10分以内で作れるスピードレシピを厳選したよ：\n\n🏃‍♂️ 豚キムチ丼 → たった8分！\n🏃‍♂️ ガパオライス → 10分で本格味\n\n切って炒めるだけだから、あっという間に完成するよ！',
+      suggestedRecipes: [MOCK_RECIPES[1], MOCK_RECIPES[0]],
     };
   }
 
@@ -141,17 +141,17 @@ export const getMockAIResponse = async (
     };
   }
 
-  if (lowerMessage.includes('弁当') || lowerMessage.includes('作り置き')) {
+  if (lowerMessage.includes('弁当') || lowerMessage.includes('作り置き') || lowerMessage.includes('冷めても')) {
     return {
-      content: '弁当用に作り置きするなら、ガパオライスか豚キムチがおすすめ！🍱 倍量で作って明日のお弁当にも使えるよ。',
+      content: 'お弁当向きのおかず、選んでおいたよ！🍱\n\n✅ 冷めても美味しい\n✅ 作り置きOK\n✅ 汁漏れしにくい\n\n倍量で作って、明日のお弁当にも入れちゃおう！朝の時間が楽になるよ〜',
       suggestedRecipes: [MOCK_RECIPES[0], MOCK_RECIPES[1]],
     };
   }
 
-  if (lowerMessage.includes('おすすめ') || lowerMessage.includes('なに作') || lowerMessage.includes('何作')) {
+  if (lowerMessage.includes('おすすめ') || lowerMessage.includes('なに作') || lowerMessage.includes('何作') || lowerMessage.includes('人気') || lowerMessage.includes('季節')) {
     const randomRecipes = [...MOCK_RECIPES].sort(() => 0.5 - Math.random()).slice(0, 2);
     return {
-      content: `今日のおすすめはこれ！${randomRecipes[0].emoji} ${randomRecipes[0].name}はどうかな？${randomRecipes[0].cooking_time_minutes}分で作れるよ！`,
+      content: `今日のおすすめはこれ！✨\n\n${randomRecipes[0].emoji} ${randomRecipes[0].name}\n└ ${randomRecipes[0].cooking_time_minutes}分で作れて、みんなに人気のメニューだよ！\n\n${randomRecipes[1].emoji} ${randomRecipes[1].name}\n└ こっちも間違いない美味しさ！\n\nどっちも試してみてね〜`,
       suggestedRecipes: randomRecipes,
     };
   }

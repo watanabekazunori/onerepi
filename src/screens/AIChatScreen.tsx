@@ -46,10 +46,26 @@ const brandColors = {
 };
 
 const QUICK_PROMPTS = [
-  { label: '疲れてる...', emoji: '😫' },
-  { label: '時間ない', emoji: '⏰' },
-  { label: 'おすすめ教えて', emoji: '✨' },
-  { label: '弁当向き', emoji: '🍱' },
+  {
+    label: '疲れてる...',
+    emoji: '😫',
+    prompt: '疲れてて料理する気力がない...。超かんたんで、洗い物も少ない楽ちんレシピを教えて！'
+  },
+  {
+    label: '時間ない',
+    emoji: '⏰',
+    prompt: '時間がないから10分以内で作れるスピードレシピを教えて！'
+  },
+  {
+    label: 'おすすめ教えて',
+    emoji: '✨',
+    prompt: '今日のおすすめレシピを教えて！人気のあるものや季節に合ったものがいいな'
+  },
+  {
+    label: '弁当向き',
+    emoji: '🍱',
+    prompt: 'お弁当に入れられるおかずを教えて！冷めても美味しくて、作り置きできるものがいいな'
+  },
 ];
 
 // Common ingredients for quick selection
@@ -228,9 +244,60 @@ export const AIChatScreen: React.FC<AIChatScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleQuickPrompt = (prompt: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setInputText(prompt);
+  const handleQuickPrompt = async (promptData: { label: string; prompt: string }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Keyboard.dismiss();
+
+    // Add user message with the label (what they clicked)
+    const newUserMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      content: promptData.label,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, newUserMessage]);
+
+    // Update conversation history with the full prompt
+    const updatedHistory: AIMessage[] = [
+      ...conversationHistory,
+      { role: 'user', content: promptData.prompt },
+    ];
+    setConversationHistory(updatedHistory);
+
+    // Show typing indicator
+    setIsTyping(true);
+
+    try {
+      // Get AI response using the detailed prompt
+      const response = await getMockAIResponse(promptData.prompt);
+
+      // Add AI message
+      const aiMessage: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        type: 'ai',
+        content: response.content,
+        timestamp: new Date(),
+        recipes: response.suggestedRecipes,
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Update conversation history
+      setConversationHistory([
+        ...updatedHistory,
+        { role: 'assistant', content: response.content },
+      ]);
+    } catch (error) {
+      console.error('AI error:', error);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        type: 'ai',
+        content: 'ごめんね、ちょっと調子が悪いみたい...もう一度試してみて！',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleRecipeSelect = (recipe: Recipe) => {
@@ -330,16 +397,16 @@ export const AIChatScreen: React.FC<AIChatScreenProps> = ({ navigation }) => {
         )}
 
         {/* Quick Prompts */}
-        {messages.length <= 1 && (
+        {messages.length <= 1 && !isTyping && (
           <View style={styles.quickPrompts}>
-            {QUICK_PROMPTS.map((prompt) => (
+            {QUICK_PROMPTS.map((promptData) => (
               <TouchableOpacity
-                key={prompt.label}
+                key={promptData.label}
                 style={styles.quickPromptChip}
-                onPress={() => handleQuickPrompt(prompt.label)}
+                onPress={() => handleQuickPrompt(promptData)}
               >
-                <Text style={styles.quickPromptEmoji}>{prompt.emoji}</Text>
-                <Text style={styles.quickPromptText}>{prompt.label}</Text>
+                <Text style={styles.quickPromptEmoji}>{promptData.emoji}</Text>
+                <Text style={styles.quickPromptText}>{promptData.label}</Text>
               </TouchableOpacity>
             ))}
           </View>

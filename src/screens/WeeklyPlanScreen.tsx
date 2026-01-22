@@ -24,6 +24,7 @@ import {
   Heart,
   Settings,
   Play,
+  Calendar,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList, WeeklyPlan, WeekDay, DayOfWeek } from '../types';
@@ -252,29 +253,64 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Quick Actions */}
-          <View style={styles.quickActionsContainer}>
+          {/* AI Consultation Section */}
+          <View style={styles.aiSection}>
+            <Text style={styles.aiSectionTitle}>🍳 AIに相談</Text>
+
+            {/* 1週間の献立を作成 */}
             <TouchableOpacity
-              style={styles.aiChatButton}
-              onPress={handleOpenAIChat}
-              activeOpacity={0.9}
+              style={styles.aiMainButton}
+              onPress={handleStartDraftMeeting}
+              activeOpacity={0.8}
             >
-              <View style={styles.aiChatIcon}>
-                <Sparkles size={24} color={brandColors.white} />
+              <View style={styles.aiMainButtonIcon}>
+                <Calendar size={24} color={brandColors.white} />
               </View>
-              <View style={styles.aiChatTextContainer}>
-                <Text style={styles.aiChatTitle}>AIにレシピを相談</Text>
-                <Text style={styles.aiChatSubtitle}>
-                  冷蔵庫の食材からレシピを提案
+              <View style={styles.aiMainButtonContent}>
+                <Text style={styles.aiMainButtonTitle}>1週間の献立を作成</Text>
+                <Text style={styles.aiMainButtonSubtitle}>
+                  まとめて計画して、毎日悩まない
                 </Text>
               </View>
               <ChevronRight size={20} color={brandColors.white} />
             </TouchableOpacity>
 
+            <View style={styles.aiButtonsRow}>
+              {/* あるものから献立 */}
+              <TouchableOpacity
+                style={styles.aiSubButton}
+                onPress={handleOpenAIChat}
+                activeOpacity={0.8}
+              >
+                <View style={styles.aiSubButtonIcon}>
+                  <Refrigerator size={22} color={brandColors.primary} />
+                </View>
+                <Text style={styles.aiSubButtonTitle}>あるもので作る</Text>
+                <Text style={styles.aiSubButtonSubtitle}>冷蔵庫の食材から</Text>
+              </TouchableOpacity>
+
+              {/* 食べたいもの相談 */}
+              <TouchableOpacity
+                style={styles.aiSubButton}
+                onPress={handleOpenAIChat}
+                activeOpacity={0.8}
+              >
+                <View style={styles.aiSubButtonIcon}>
+                  <Sparkles size={22} color={brandColors.primary} />
+                </View>
+                <Text style={styles.aiSubButtonTitle}>食べたい気分</Text>
+                <Text style={styles.aiSubButtonSubtitle}>気分からレシピ提案</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsContainer}>
             <View style={styles.quickButtonsRow}>
               <TouchableOpacity
                 style={styles.quickButton}
                 onPress={handleOpenInventory}
+                activeOpacity={0.7}
               >
                 <View style={styles.quickButtonIcon}>
                   <Refrigerator size={20} color={brandColors.primary} />
@@ -285,6 +321,7 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
               <TouchableOpacity
                 style={styles.quickButton}
                 onPress={handleOpenFavorites}
+                activeOpacity={0.7}
               >
                 <View style={styles.quickButtonIcon}>
                   <Heart size={20} color={brandColors.primary} />
@@ -294,12 +331,13 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
 
               <TouchableOpacity
                 style={styles.quickButton}
-                onPress={handleStartDraftMeeting}
+                onPress={() => navigation.navigate('RecipeList' as any)}
+                activeOpacity={0.7}
               >
                 <View style={styles.quickButtonIcon}>
                   <Plus size={20} color={brandColors.primary} />
                 </View>
-                <Text style={styles.quickButtonText}>献立追加</Text>
+                <Text style={styles.quickButtonText}>レシピ検索</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -518,25 +556,31 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  // Quick Actions
-  quickActionsContainer: {
+  // AI Section
+  aiSection: {
     paddingHorizontal: 24,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  aiChatButton: {
+  aiSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: brandColors.text,
+    marginBottom: 12,
+  },
+  aiMainButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: brandColors.primary,
     borderRadius: 20,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: brandColors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
   },
-  aiChatIcon: {
+  aiMainButtonIcon: {
     width: 48,
     height: 48,
     borderRadius: 14,
@@ -545,19 +589,61 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
   },
-  aiChatTextContainer: {
+  aiMainButtonContent: {
     flex: 1,
   },
-  aiChatTitle: {
+  aiMainButtonTitle: {
     fontSize: 17,
     fontWeight: '700',
     color: brandColors.white,
     marginBottom: 2,
   },
-  aiChatSubtitle: {
+  aiMainButtonSubtitle: {
     fontSize: 13,
     fontWeight: '400',
     color: 'rgba(255,255,255,0.8)',
+  },
+  aiButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  aiSubButton: {
+    flex: 1,
+    backgroundColor: brandColors.white,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: brandColors.cardShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  aiSubButtonIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: brandColors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  aiSubButtonTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brandColors.text,
+    marginBottom: 2,
+  },
+  aiSubButtonSubtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: brandColors.textMuted,
+  },
+
+  // Quick Actions
+  quickActionsContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   quickButtonsRow: {
     flexDirection: 'row',
