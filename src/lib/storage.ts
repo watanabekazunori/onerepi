@@ -178,6 +178,9 @@ export interface UserPreferences {
   cookingSkill: string;
   kitchenEquipment: string[];
   pantrySeasonings: string[]; // 常備調味料リスト
+  // 好み診断結果（オンボーディングとは別）
+  diagnosisAnswers?: Record<string, string[]>;
+  diagnosisCompletedAt?: string;
 }
 
 // デフォルトの常備調味料リスト（オンボーディングで選択肢として表示）

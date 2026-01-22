@@ -27,3 +27,6 @@ export { FavoritesScreen } from './FavoritesScreen';
 // AI & Feedback
 export { AIRecipeScreen } from './AIRecipeScreen';
 export { CookingFeedbackScreen } from './CookingFeedbackScreen';
+
+// Preference Diagnosis
+export { PreferenceDiagnosisScreen } from './PreferenceDiagnosisScreen';

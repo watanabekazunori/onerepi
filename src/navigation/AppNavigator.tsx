@@ -35,6 +35,7 @@ import {
   FavoritesScreen,
   AIRecipeScreen,
   CookingFeedbackScreen,
+  PreferenceDiagnosisScreen,
 } from '../screens';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { colors, spacing, borderRadius } from '../lib/theme';
@@ -221,6 +222,14 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="CookingFeedback"
           component={CookingFeedbackScreen}
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="PreferenceDiagnosis"
+          component={PreferenceDiagnosisScreen}
           options={{
             animation: 'slide_from_bottom',
             presentation: 'modal',

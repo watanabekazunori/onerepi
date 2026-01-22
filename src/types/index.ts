@@ -216,6 +216,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Inventory: undefined;
   Favorites: undefined;
+  PreferenceDiagnosis: undefined; // 好み診断（より深い質問）
 };
 
 export type MainTabParamList = {

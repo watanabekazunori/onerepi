@@ -342,11 +342,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => navigation.navigate('Onboarding')}
+              onPress={() => navigation.navigate('PreferenceDiagnosis')}
             >
               <View style={styles.menuLeft}>
                 <Sparkles size={20} color="#FFB800" />
-                <Text style={styles.menuLabel}>好み診断をやり直す</Text>
+                <Text style={styles.menuLabel}>好み診断</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate('Onboarding')}
+            >
+              <View style={styles.menuLeft}>
+                <AlertTriangle size={20} color={colors.warning} />
+                <Text style={styles.menuLabel}>初期設定をやり直す</Text>
               </View>
               <ChevronRight size={20} color={colors.textMuted} />
             </TouchableOpacity>
