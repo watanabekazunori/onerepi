@@ -58,16 +58,17 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
   const currentQuestion = DIAGNOSIS_QUESTIONS[currentQuestionIndex];
 
   const animateTransition = (callback: () => void) => {
+    // Web環境ではuseNativeDriverをfalseにする必要がある
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(slideAnim, {
         toValue: -30,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => {
       callback();
@@ -76,12 +77,12 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     });
@@ -97,18 +98,18 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
   const handleOptionSelect = (option: 'A' | 'B') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // 選択アニメーション
+    // 選択アニメーション（Web対応: useNativeDriver: false）
     const scaleAnim = option === 'A' ? scaleAnimA : scaleAnimB;
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 0.95,
         duration: 100,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
         duration: 100,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start();
 
@@ -252,21 +253,29 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
 
   // 質問画面（A/B選択形式）
   const renderQuestion = () => {
-    if (!currentQuestion) return null;
+    if (!currentQuestion) {
+      console.log('[PreferenceDiagnosis] currentQuestion is null, index:', currentQuestionIndex);
+      return null;
+    }
 
     const situationText = currentQuestion.situation;
     const questionText = currentQuestion.question;
 
     return (
-      <Animated.View
-        style={[
-          styles.questionContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateX: slideAnim }],
-          },
-        ]}
+      <ScrollView
+        style={styles.questionScrollView}
+        contentContainerStyle={styles.questionScrollContent}
+        showsVerticalScrollIndicator={false}
       >
+        <Animated.View
+          style={[
+            styles.questionContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateX: slideAnim }],
+            },
+          ]}
+        >
         {/* プログレス */}
         <View style={styles.progressContainer}>
           <View style={styles.progressDots}>
@@ -337,7 +346,8 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
         <Text style={styles.questionHint}>
           直感で選んでね！深く考えなくてOK 🙌
         </Text>
-      </Animated.View>
+        </Animated.View>
+      </ScrollView>
     );
   };
 
@@ -640,6 +650,13 @@ const styles = StyleSheet.create({
   },
 
   // Question
+  questionScrollView: {
+    flex: 1,
+  },
+  questionScrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
+  },
   questionContainer: {
     flex: 1,
   },
