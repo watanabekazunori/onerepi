@@ -230,6 +230,7 @@ export type MainTabParamList = {
   WeeklyPlan: undefined;
   ShoppingList: undefined;
   CookingLog: undefined;
+  MyTypeTab: undefined;
   Profile: undefined;
 };
 

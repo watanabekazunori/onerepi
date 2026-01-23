@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   BookOpen,
   User,
+  Award,
 } from 'lucide-react-native';
 import { MobileContainer } from '../components/ui';
 
@@ -62,6 +63,8 @@ const MainTabNavigator = () => {
               return <ShoppingCart size={size} color={color} />;
             case 'CookingLog':
               return <BookOpen size={size} color={color} />;
+            case 'MyTypeTab':
+              return <Award size={size} color={color} />;
             case 'Profile':
               return <User size={size} color={color} />;
             default:
@@ -84,6 +87,11 @@ const MainTabNavigator = () => {
         name="CookingLog"
         component={CookingLogScreen}
         options={{ tabBarLabel: '日記' }}
+      />
+      <Tab.Screen
+        name="MyTypeTab"
+        component={MyTypeScreen}
+        options={{ tabBarLabel: 'タイプ' }}
       />
       <Tab.Screen
         name="Profile"

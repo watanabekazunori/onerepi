@@ -425,24 +425,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* マイタイプ画面（診断済みの場合） */}
-            {diagnosisType && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => navigation.navigate('MyType')}
-              >
-                <View style={styles.menuLeft}>
-                  <Award size={20} color={FOOD_TYPES[diagnosisType].color} />
-                  <Text style={styles.menuLabel}>マイタイプ</Text>
-                </View>
-                <View style={styles.menuRight}>
+            {/* マイタイプ画面（常に表示） */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate('MyType')}
+            >
+              <View style={styles.menuLeft}>
+                <Award size={20} color={diagnosisType ? FOOD_TYPES[diagnosisType].color : colors.primary} />
+                <Text style={styles.menuLabel}>マイタイプ</Text>
+              </View>
+              <View style={styles.menuRight}>
+                {diagnosisType ? (
                   <Text style={[styles.menuBadge, { color: FOOD_TYPES[diagnosisType].color }]}>
                     {FOOD_TYPES[diagnosisType].emoji} {FOOD_TYPES[diagnosisType].name}
                   </Text>
-                  <ChevronRight size={20} color={colors.textMuted} />
-                </View>
-              </TouchableOpacity>
-            )}
+                ) : (
+                  <Text style={styles.menuBadge}>未診断</Text>
+                )}
+                <ChevronRight size={20} color={colors.textMuted} />
+              </View>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
