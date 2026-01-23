@@ -90,9 +90,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
 
   const handleStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    animateTransition(() => {
-      setCurrentStep('question');
-    });
+    setCurrentStep('question');
   };
 
   const handleOptionSelect = (option: 'A' | 'B') => {
@@ -125,16 +123,12 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
     // 次の質問へ、または結果画面へ
     setTimeout(() => {
       if (currentQuestionIndex < totalQuestions - 1) {
-        animateTransition(() => {
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
-        });
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
       } else {
         // 診断結果を計算
         const diagnosisResult = calculateDiagnosisResult(updatedAnswers);
         setResult(diagnosisResult);
-        animateTransition(() => {
-          setCurrentStep('result');
-        });
+        setCurrentStep('result');
       }
     }, 300);
   };
@@ -189,9 +183,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
     setAnswers([]);
     setCurrentQuestionIndex(0);
     setResult(null);
-    animateTransition(() => {
-      setCurrentStep('question');
-    });
+    setCurrentStep('question');
   };
 
   // イントロ画面
@@ -201,15 +193,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
       contentContainerStyle={styles.introScrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <Animated.View
-        style={[
-          styles.introContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateX: slideAnim }],
-          },
-        ]}
-      >
+      <View style={styles.introContainer}>
         <View style={styles.introIconContainer}>
           <Text style={styles.introMainEmoji}>🧠</Text>
         </View>
@@ -247,7 +231,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
           <Text style={styles.startButtonText}>診断をはじめる</Text>
           <ArrowRight size={20} color={colors.white} />
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     </ScrollView>
   );
 
@@ -267,15 +251,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
         contentContainerStyle={styles.questionScrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View
-          style={[
-            styles.questionContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateX: slideAnim }],
-            },
-          ]}
-        >
+        <View style={styles.questionContainer}>
         {/* プログレス */}
         <View style={styles.progressContainer}>
           <View style={styles.progressDots}>
@@ -346,7 +322,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
         <Text style={styles.questionHint}>
           直感で選んでね！深く考えなくてOK 🙌
         </Text>
-        </Animated.View>
+        </View>
       </ScrollView>
     );
   };
