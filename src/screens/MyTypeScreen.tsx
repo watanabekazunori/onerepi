@@ -1,9 +1,9 @@
 // ============================================
 // ワンパン・バディ - マイタイプ画面
-// ユーザーの食タイプ情報と学習進捗を表示
+// 「このアプリは私をどれだけ理解しているか」を感じさせる場所
 // ============================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,48 +11,53 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ChevronRight,
-  RefreshCw,
-  TrendingUp,
-  Award,
-  Sparkles,
-  Info,
-} from 'lucide-react-native';
+import { Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
-import { getUserPreferences, UserPreferences } from '../lib/storage';
+import { getUserPreferences, UserPreferences, getCookingLog } from '../lib/storage';
 import {
   FoodPsychologyType,
   FOOD_TYPES,
-  DiagnosisAnswers,
 } from '../lib/preferenceScoring';
-import {
-  UserLearningProfile,
-  createDefaultLearningProfile,
-  generateMyTypeDisplayData,
-  getConfidenceLevel,
-  MyTypeDisplayData,
-  LEARNING_MILESTONES,
-} from '../lib/userTypeLearning';
-import { colors, spacing, borderRadius, shadows } from '../lib/theme';
-
-const { width: screenWidth } = Dimensions.get('window');
+import { colors, spacing, borderRadius } from '../lib/theme';
 
 type MyTypeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'MyType'>;
 };
 
+// タイプ別の説明文（指定文言）
+const TYPE_DESCRIPTIONS: Record<FoodPsychologyType, string> = {
+  smart_balancer: '疲れている日は、\n「早く・失敗しない」を選びがち。',
+  stoic_creator: '体のことを考えて、\n新しい健康法も試したくなる派。',
+  healing_gourmet: '「いつものあの味」が、\n心の支えになることを知ってる。',
+  trend_hunter: '食で気分を上げたい。\n新しい味との出会いがワクワクする。',
+  balanced: 'その日の気分で柔軟に。\n平日は効率、週末は楽しみ重視。',
+};
+
+// 理解度に応じたサブ文言
+const getUnderstandingMessage = (percentage: number): string => {
+  if (percentage < 40) {
+    return 'まだ様子見中。これから分かってくよ';
+  } else if (percentage < 70) {
+    return 'だいぶ好みが見えてきた';
+  } else {
+    return 'かなり理解できてるよ';
+  }
+};
+
+// ============================================
+// メインコンポーネント
+// ============================================
+
 export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
   const [userPrefs, setUserPrefs] = useState<UserPreferences | null>(null);
   const [psychologyType, setPsychologyType] = useState<FoodPsychologyType | null>(null);
-  const [displayData, setDisplayData] = useState<MyTypeDisplayData | null>(null);
-  const [learningProfile, setLearningProfile] = useState<UserLearningProfile | null>(null);
+  const [understandingScore, setUnderstandingScore] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // アニメーション
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -64,76 +69,101 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
     }, [])
   );
 
-  useEffect(() => {
-    if (displayData) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(progressAnim, {
-          toValue: displayData.learningProgress.percentage / 100,
-          duration: 800,
-          useNativeDriver: false,
-        }),
-      ]).start();
-    }
-  }, [displayData]);
-
   const loadUserData = async () => {
+    setIsLoading(true);
     try {
       const prefs = await getUserPreferences();
       setUserPrefs(prefs);
 
-      const diagnosisAnswers = prefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
-      const type = diagnosisAnswers?.psychologyType as FoodPsychologyType | undefined;
+      // diagnosisAnswers から psychologyType を取得
+      const diagnosisAnswers = prefs?.diagnosisAnswers as { psychologyType?: FoodPsychologyType } | undefined;
+      const type = diagnosisAnswers?.psychologyType;
 
-      if (type) {
+      if (type && FOOD_TYPES[type]) {
         setPsychologyType(type);
 
-        // 学習プロファイルを作成（本来はストレージから取得）
-        // TODO: 実際の学習データをストレージから読み込む
-        const profile = createDefaultLearningProfile(type);
+        // TODO: 実際の学習データから計算する
+        // 現在は料理ログから擬似的に計算
+        const logs = await getCookingLog();
+        const cookedCount = logs.length;
+        const acceptedCount = logs.filter(l => (l.rating ?? 0) >= 4).length;
 
-        // デモ用: 料理ログの数を擬似的に設定
-        // 実際のアプリでは getCookingLogs() から計算する
-        profile.metadata.totalInteractions = 12;
-        profile.metadata.totalCookedRecipes = 8;
-        profile.metadata.totalRatings = 5;
-        profile.metadata.confidenceLevel = getConfidenceLevel(profile.metadata.totalInteractions).percentage;
+        // understandingScore = clamp(20 + cookedCount*8 + acceptedCount*5, 0, 100)
+        const score = Math.min(100, Math.max(0, 20 + cookedCount * 8 + acceptedCount * 5));
 
-        setLearningProfile(profile);
-        setDisplayData(generateMyTypeDisplayData(profile));
+        // デモ用: ログがない場合は62%をデフォルトとする
+        // TODO: 実運用時はこのフォールバックを削除
+        setUnderstandingScore(cookedCount === 0 ? 62 : score);
+
+        // アニメーション開始
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(progressAnim, {
+            toValue: (cookedCount === 0 ? 62 : score) / 100,
+            duration: 800,
+            useNativeDriver: false,
+          }),
+        ]).start();
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleRetakeDiagnosis = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('PreferenceDiagnosis', { isRetake: true });
+  const handleStartDiagnosis = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate('PreferenceDiagnosis', { isRetake: false });
   };
 
-  if (!psychologyType || !displayData) {
-    // 診断未完了の場合
+  const handleCreatePlan = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate('DraftMeeting', {});
+  };
+
+  const handleLearnMore = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // TODO: 学習許可のモーダルを表示する
+    // 現時点では何もしない
+  };
+
+  // ============================================
+  // A. 未診断時の表示
+  // ============================================
+  if (!psychologyType && !isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.emptyContainer}>
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>🔮</Text>
-            <Text style={styles.emptyTitle}>まだタイプ診断していないよ</Text>
-            <Text style={styles.emptyDescription}>
-              5つの質問に答えるだけで、{'\n'}
-              あなたの「食のタイプ」がわかるよ！
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.undiagnosedContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.undiagnosedCard}>
+            {/* 見出し */}
+            <Text style={styles.undiagnosedTitle}>
+              あなたの好み、もう少し知りたい
             </Text>
+
+            {/* 本文 */}
+            <Text style={styles.undiagnosedBody}>
+              何を食べたいか、{'\n'}
+              考えるのがしんどい日もあるよね。{'\n'}
+              少しだけ教えてくれたら、{'\n'}
+              あなたの代わりに考えるよ。
+            </Text>
+
+            {/* CTA */}
             <TouchableOpacity
-              style={styles.diagnosisButton}
-              onPress={() => navigation.navigate('PreferenceDiagnosis', { isRetake: false })}
+              style={styles.ctaButton}
+              onPress={handleStartDiagnosis}
+              activeOpacity={0.8}
             >
-              <Sparkles size={20} color={colors.white} />
-              <Text style={styles.diagnosisButtonText}>診断を始める</Text>
+              <Text style={styles.ctaButtonText}>ごはん決めを任せる</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -141,7 +171,21 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
     );
   }
 
-  const typeInfo = FOOD_TYPES[psychologyType];
+  // ローディング中
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>読み込み中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ============================================
+  // B. 診断済みの表示
+  // ============================================
+  const typeInfo = FOOD_TYPES[psychologyType!];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -152,54 +196,41 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
       >
         <Animated.View style={{ opacity: fadeAnim }}>
           {/* ===== タイプカード ===== */}
-          <View style={[styles.typeCard, { backgroundColor: typeInfo.color }]}>
-            <View style={styles.typeCardHeader}>
-              <Text style={styles.typeEmoji}>{typeInfo.emoji}</Text>
-              <View style={styles.typeCardBadge}>
-                <Text style={styles.typeCardBadgeText}>あなたのタイプ</Text>
-              </View>
-            </View>
-            <Text style={styles.typeName}>{typeInfo.name}</Text>
-            <Text style={styles.typeShortDesc}>{typeInfo.shortDescription}</Text>
-            <Text style={styles.typeFullDesc}>{typeInfo.fullDescription}</Text>
-
-            {/* キーワードタグ */}
-            <View style={styles.keywordsContainer}>
-              {typeInfo.keywords.map((keyword, index) => (
-                <View key={index} style={styles.keywordTag}>
-                  <Text style={styles.keywordText}>{keyword}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* 再診断ボタン */}
-            <TouchableOpacity
-              style={styles.retakeButton}
-              onPress={handleRetakeDiagnosis}
-            >
-              <RefreshCw size={14} color={colors.white} />
-              <Text style={styles.retakeButtonText}>再診断する</Text>
-            </TouchableOpacity>
+          <View style={styles.typeCard}>
+            <Text style={styles.typeCardLabel}>あなたの今のタイプ</Text>
+            <Text style={styles.typeName}>
+              {typeInfo.emoji} {typeInfo.name}
+            </Text>
+            <Text style={styles.typeDescription}>
+              {TYPE_DESCRIPTIONS[psychologyType!]}
+            </Text>
           </View>
 
-          {/* ===== 学習進捗カード ===== */}
+          {/* ===== 最近の傾向 ===== */}
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <TrendingUp size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>あなたの理解度</Text>
-            </View>
-
-            <View style={styles.progressContainer}>
-              <View style={styles.progressLabelRow}>
-                <Text style={styles.progressLabel}>
-                  {displayData.learningProgress.label}
-                </Text>
-                <Text style={styles.progressPercentage}>
-                  {displayData.learningProgress.percentage}%
-                </Text>
+            <Text style={styles.sectionTitle}>最近の傾向</Text>
+            <View style={styles.tendencyList}>
+              <View style={styles.tendencyItem}>
+                <Text style={styles.tendencyEmoji}>⏱</Text>
+                <Text style={styles.tendencyText}>15分以内をよく選ぶ</Text>
               </View>
+              <View style={styles.tendencyItem}>
+                <Text style={styles.tendencyEmoji}>🥘</Text>
+                <Text style={styles.tendencyText}>ワンパン率 高め</Text>
+              </View>
+              <View style={styles.tendencyItem}>
+                <Text style={styles.tendencyEmoji}>🌶</Text>
+                <Text style={styles.tendencyText}>冒険は控えめ</Text>
+              </View>
+            </View>
+          </View>
 
-              {/* プログレスバー */}
+          {/* ===== 理解度メーター ===== */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>🧠 あなたの理解度</Text>
+
+            {/* プログレスバー */}
+            <View style={styles.progressContainer}>
               <View style={styles.progressBarBackground}>
                 <Animated.View
                   style={[
@@ -209,189 +240,88 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
                         inputRange: [0, 1],
                         outputRange: ['0%', '100%'],
                       }),
-                      backgroundColor: typeInfo.color,
                     },
                   ]}
                 />
-                {/* マイルストーンマーカー */}
-                <View style={[styles.milestoneMarker, { left: '10%' }]} />
-                <View style={[styles.milestoneMarker, { left: '30%' }]} />
-                <View style={[styles.milestoneMarker, { left: '50%' }]} />
-                <View style={[styles.milestoneMarker, { left: '100%' }]} />
               </View>
-
-              <Text style={styles.progressDescription}>
-                {displayData.learningProgress.description}
-              </Text>
+              <Text style={styles.progressPercentage}>{understandingScore}%</Text>
             </View>
 
-            {/* 統計情報 */}
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {displayData.stats.totalCooked}
-                </Text>
-                <Text style={styles.statLabel}>作った料理</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {displayData.learningProgress.currentCount}
-                </Text>
-                <Text style={styles.statLabel}>アクション</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {displayData.stats.preferredCookingTime}
-                </Text>
-                <Text style={styles.statLabel}>好きな調理時間</Text>
-              </View>
-            </View>
+            {/* サブ文言 */}
+            <Text style={styles.understandingMessage}>
+              {getUnderstandingMessage(understandingScore)}
+            </Text>
           </View>
 
-          {/* ===== 好みレーダー ===== */}
+          {/* ===== 進化の匂わせ ===== */}
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Award size={20} color={colors.secondary} />
-              <Text style={styles.sectionTitle}>あなたの好み傾向</Text>
-            </View>
+            <Text style={styles.sectionTitle}>この先、こんな感じに進化するかも</Text>
 
-            {/* 簡易バーチャート */}
-            <View style={styles.preferenceBars}>
-              {displayData.preferences.labels.map((label, index) => {
-                const value = displayData.preferences.values[index];
-                return (
-                  <View key={label} style={styles.preferenceBarRow}>
-                    <Text style={styles.preferenceLabel}>{label}</Text>
-                    <View style={styles.preferenceBarBackground}>
-                      <View
-                        style={[
-                          styles.preferenceBarFill,
-                          {
-                            width: `${value}%`,
-                            backgroundColor:
-                              value >= 60
-                                ? typeInfo.color
-                                : value >= 40
-                                ? colors.textMuted
-                                : colors.border,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.preferenceValue}>{value}%</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ===== カテゴリ親和性 ===== */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Sparkles size={20} color={colors.warning} />
-              <Text style={styles.sectionTitle}>相性の良いジャンル</Text>
-            </View>
-
-            <View style={styles.affinityContainer}>
-              {displayData.affinityCategories.slice(0, 4).map((item, index) => {
-                const categoryLabels: Record<string, string> = {
-                  japanese: '和食',
-                  western: '洋食',
-                  chinese: '中華',
-                  asian: 'アジアン',
-                  other: 'その他',
-                };
-                const categoryEmojis: Record<string, string> = {
-                  japanese: '🍙',
-                  western: '🍝',
-                  chinese: '🥟',
-                  asian: '🍜',
-                  other: '🌍',
-                };
-                return (
-                  <View key={item.category} style={styles.affinityItem}>
-                    <Text style={styles.affinityEmoji}>
-                      {categoryEmojis[item.category] || '🍽️'}
-                    </Text>
-                    <Text style={styles.affinityLabel}>
-                      {categoryLabels[item.category] || item.category}
-                    </Text>
-                    <View style={styles.affinityBar}>
-                      <View
-                        style={[
-                          styles.affinityBarFill,
-                          {
-                            width: `${item.affinity}%`,
-                            backgroundColor:
-                              index === 0 ? typeInfo.color : colors.textMuted,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ===== サブタイプ（30パターン用） ===== */}
-          {displayData.subType && (
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <Info size={20} color={colors.info} />
-                <Text style={styles.sectionTitle}>詳細タイプ</Text>
+            <View style={styles.evolutionContainer}>
+              {/* 現在のタイプ */}
+              <View style={styles.evolutionItem}>
+                <Text style={styles.evolutionEmoji}>{typeInfo.emoji}</Text>
+                <Text style={styles.evolutionLabel}>{typeInfo.name}</Text>
               </View>
-              <View style={styles.subTypeContainer}>
-                <Text style={styles.subTypeLabel}>
-                  {displayData.subType.label}
-                </Text>
-                <Text style={styles.subTypeNote}>
-                  料理を続けると、より詳しいタイプが分かるようになるよ！
-                </Text>
+
+              <Text style={styles.evolutionArrow}>↓</Text>
+
+              {/* ロック中の進化先1 */}
+              <View style={styles.evolutionItemLocked}>
+                <Lock size={16} color={colors.textMuted} />
+                <Text style={styles.evolutionLabelLocked}>疲労回避型</Text>
+              </View>
+
+              <Text style={styles.evolutionArrow}>↓</Text>
+
+              {/* ロック中の進化先2 */}
+              <View style={styles.evolutionItemLocked}>
+                <Lock size={16} color={colors.textMuted} />
+                <Text style={styles.evolutionLabelLocked}>平日短期決戦型</Text>
               </View>
             </View>
-          )}
 
-          {/* ===== おすすめキーワード ===== */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>🔍 こんなレシピがおすすめ</Text>
-            <View style={styles.recommendedKeywords}>
-              {displayData.recommendedKeywords.map((keyword, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.recommendKeywordTag,
-                    { borderColor: typeInfo.color },
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    // TODO: キーワードでレシピ検索
-                  }}
-                >
-                  <Text
-                    style={[styles.recommendKeywordText, { color: typeInfo.color }]}
-                  >
-                    #{keyword}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={styles.evolutionSubCopy}>
+              使うほど、あなた専用に近づくよ
+            </Text>
+
+            {/* 控えめCTA */}
+            <TouchableOpacity
+              style={styles.learnMoreButton}
+              onPress={handleLearnMore}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.learnMoreButtonText}>もっと覚えてもいい？</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ===== メインCTA ===== */}
+          <View style={styles.ctaContainer}>
+            <TouchableOpacity
+              style={styles.ctaButton}
+              onPress={handleCreatePlan}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.ctaButtonText}>このタイプで献立を作る</Text>
+            </TouchableOpacity>
           </View>
 
           {/* 下部の余白 */}
-          <View style={{ height: 100 }} />
+          <View style={{ height: 40 }} />
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// ============================================
+// スタイル定義
+// ============================================
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFF8F0',
   },
   scrollView: {
     flex: 1,
@@ -400,126 +330,77 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
 
-  // ===== 未診断状態 =====
-  emptyContainer: {
+  // ===== ローディング =====
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
   },
-  emptyCard: {
+  loadingText: {
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+
+  // ===== 未診断時 =====
+  undiagnosedContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  undiagnosedCard: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
     alignItems: 'center',
-    ...shadows.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: spacing.md,
-  },
-  emptyTitle: {
-    fontSize: 20,
+  undiagnosedTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  emptyDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
     marginBottom: spacing.lg,
   },
-  diagnosisButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    gap: spacing.xs,
-  },
-  diagnosisButtonText: {
-    color: colors.white,
+  undiagnosedBody: {
     fontSize: 16,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: spacing.xl,
   },
 
   // ===== タイプカード =====
   typeCard: {
+    backgroundColor: colors.white,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    ...shadows.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  typeCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  typeEmoji: {
-    fontSize: 48,
-  },
-  typeCardBadge: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  typeCardBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  typeName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.white,
+  typeCardLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textMuted,
     marginBottom: spacing.xs,
   },
-  typeShortDesc: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.9)',
+  typeName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.text,
     marginBottom: spacing.sm,
   },
-  typeFullDesc: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    lineHeight: 20,
-    marginBottom: spacing.md,
-  },
-  keywordsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  keywordTag: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
-  },
-  keywordText: {
-    fontSize: 12,
-    color: colors.white,
-    fontWeight: '500',
-  },
-  retakeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-    opacity: 0.8,
-  },
-  retakeButtonText: {
-    fontSize: 12,
-    color: colors.white,
-    fontWeight: '500',
+  typeDescription: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 24,
   },
 
   // ===== セクションカード =====
@@ -528,190 +409,147 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...shadows.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-  },
-
-  // ===== 学習進捗 =====
-  progressContainer: {
     marginBottom: spacing.md,
   },
-  progressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+
+  // ===== 最近の傾向 =====
+  tendencyList: {
+    gap: spacing.sm,
   },
-  progressLabel: {
+  tendencyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  tendencyEmoji: {
     fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
+    width: 28,
+    textAlign: 'center',
+  },
+  tendencyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+
+  // ===== 理解度メーター =====
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 14,
+    backgroundColor: '#E5E7EB',
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
   },
   progressPercentage: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.primary,
-  },
-  progressBarBackground: {
-    height: 12,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-  },
-  milestoneMarker: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    transform: [{ translateX: -1 }],
-  },
-  progressDescription: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-
-  // ===== 統計 =====
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: colors.border,
-  },
-
-  // ===== 好みバーチャート =====
-  preferenceBars: {
-    gap: spacing.sm,
-  },
-  preferenceBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  preferenceLabel: {
-    width: 60,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  preferenceBarBackground: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-    marginHorizontal: spacing.sm,
-  },
-  preferenceBarFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-  },
-  preferenceValue: {
-    width: 36,
-    fontSize: 12,
-    color: colors.textMuted,
+    minWidth: 50,
     textAlign: 'right',
   },
-
-  // ===== カテゴリ親和性 =====
-  affinityContainer: {
-    gap: spacing.sm,
-  },
-  affinityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  affinityEmoji: {
-    fontSize: 20,
-    width: 30,
-  },
-  affinityLabel: {
-    width: 60,
-    fontSize: 13,
-    color: colors.text,
-  },
-  affinityBar: {
-    flex: 1,
-    height: 10,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-    marginLeft: spacing.sm,
-  },
-  affinityBarFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-  },
-
-  // ===== サブタイプ =====
-  subTypeContainer: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-  },
-  subTypeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subTypeNote: {
-    fontSize: 12,
+  understandingMessage: {
+    fontSize: 14,
     color: colors.textMuted,
   },
 
-  // ===== おすすめキーワード =====
-  recommendedKeywords: {
+  // ===== 進化の匂わせ =====
+  evolutionContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  evolutionItem: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+  },
+  evolutionEmoji: {
+    fontSize: 18,
+  },
+  evolutionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  evolutionArrow: {
+    fontSize: 16,
+    color: colors.textMuted,
+    marginVertical: 4,
+  },
+  evolutionItemLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.xs,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+  },
+  evolutionLabelLocked: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  evolutionSubCopy: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  learnMoreButton: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  learnMoreButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.primary,
+  },
+
+  // ===== CTA =====
+  ctaContainer: {
     marginTop: spacing.sm,
   },
-  recommendKeywordTag: {
-    borderWidth: 1.5,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+  ctaButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 18,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.white,
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  recommendKeywordText: {
-    fontSize: 13,
-    fontWeight: '500',
+  ctaButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.white,
   },
 });
 

@@ -3,8 +3,8 @@
 // React Navigation setup with Tabs & Stack
 // ============================================
 
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -39,6 +39,8 @@ import {
   PreferenceDiagnosisScreen,
   MyTypeScreen,
 } from '../screens';
+import { QuickOnboardingNavigator } from '../screens/quickOnboarding';
+import { isQuickOnboardingCompleted } from '../lib/quickOnboarding';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { colors, spacing, borderRadius } from '../lib/theme';
 
@@ -102,22 +104,66 @@ const MainTabNavigator = () => {
   );
 };
 
+// QuickOnboarding Wrapper Component
+const QuickOnboardingWrapper = ({ navigation }: any) => {
+  const handleComplete = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }],
+    });
+  };
+
+  return <QuickOnboardingNavigator onComplete={handleComplete} />;
+};
+
 // Root Stack Navigator
 export const AppNavigator = () => {
-  // TODO: Check if user has completed onboarding
-  const hasCompletedOnboarding = false;
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasCompletedQuickOnboarding, setHasCompletedQuickOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      try {
+        const completed = await isQuickOnboardingCompleted();
+        setHasCompletedQuickOnboarding(completed);
+      } catch (error) {
+        console.error('Failed to check onboarding status:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkOnboardingStatus();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <MobileContainer>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </MobileContainer>
+    );
+  }
 
   return (
     <MobileContainer>
       <NavigationContainer>
         <Stack.Navigator
-        initialRouteName={hasCompletedOnboarding ? 'MainTabs' : 'Welcome'}
+        initialRouteName={hasCompletedQuickOnboarding ? 'MainTabs' : 'QuickOnboarding'}
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
         }}
       >
-        {/* New Onboarding Flow */}
+        {/* Quick Onboarding - 初回3分体験 */}
+        <Stack.Screen
+          name="QuickOnboarding"
+          component={QuickOnboardingWrapper}
+          options={{
+            animation: 'fade',
+          }}
+        />
+        {/* Legacy Onboarding Flow */}
         <Stack.Screen
           name="Welcome"
           component={WelcomeScreen}
@@ -258,6 +304,12 @@ export const AppNavigator = () => {
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF8F0',
+  },
   tabBar: {
     backgroundColor: colors.white,
     borderTopWidth: 1,

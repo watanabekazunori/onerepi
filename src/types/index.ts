@@ -207,6 +207,7 @@ export type OnboardingStep =
 // ============ Navigation Types ============
 
 export type RootStackParamList = {
+  QuickOnboarding: undefined; // 初回3分体験
   Welcome: undefined;
   OnboardingSlides: undefined;
   Setup: undefined;

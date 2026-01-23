@@ -53,6 +53,7 @@ const brandColors = {
   white: '#FFFFFF',
   border: '#F0E6DE',
   surface: '#FAFAFA',
+  surfaceAlt: '#F8F4F0',
   success: '#4CAF50',
   cardShadow: 'rgba(45, 24, 16, 0.08)',
 };
