@@ -195,53 +195,59 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }
 
   // イントロ画面
   const renderIntro = () => (
-    <Animated.View
-      style={[
-        styles.introContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateX: slideAnim }],
-        },
-      ]}
+    <ScrollView
+      style={styles.introScrollView}
+      contentContainerStyle={styles.introScrollContent}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.introIconContainer}>
-        <Text style={styles.introMainEmoji}>🧠</Text>
-      </View>
-
-      <Text style={styles.introTitle}>食の心理タイプ診断</Text>
-      <Text style={styles.introSubtitle}>
-        5つの質問であなたの「食の心理タイプ」を診断！{'\n'}
-        ぴったりの献立を提案できるようになるよ
-      </Text>
-
-      <View style={styles.introTypePreview}>
-        <Text style={styles.introTypePreviewTitle}>診断でわかる5つのタイプ</Text>
-        <View style={styles.introTypeGrid}>
-          {Object.values(FOOD_TYPES).map((type) => (
-            <View key={type.id} style={styles.introTypeItem}>
-              <Text style={styles.introTypeEmoji}>{type.emoji}</Text>
-              <Text style={styles.introTypeName}>{type.name}</Text>
-            </View>
-          ))}
+      <Animated.View
+        style={[
+          styles.introContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.introIconContainer}>
+          <Text style={styles.introMainEmoji}>🧠</Text>
         </View>
-      </View>
 
-      <View style={styles.introInfo}>
-        <View style={styles.introInfoItem}>
-          <Text style={styles.introInfoEmoji}>⏱️</Text>
-          <Text style={styles.introInfoText}>所要時間: 約1分</Text>
-        </View>
-        <View style={styles.introInfoItem}>
-          <Text style={styles.introInfoEmoji}>🔄</Text>
-          <Text style={styles.introInfoText}>何度でも再診断OK</Text>
-        </View>
-      </View>
+        <Text style={styles.introTitle}>食の心理タイプ診断</Text>
+        <Text style={styles.introSubtitle}>
+          5つの質問であなたの「食の心理タイプ」を診断！{'\n'}
+          ぴったりの献立を提案できるようになるよ
+        </Text>
 
-      <TouchableOpacity style={styles.startButton} onPress={handleStart}>
-        <Text style={styles.startButtonText}>診断をはじめる</Text>
-        <ArrowRight size={20} color={colors.white} />
-      </TouchableOpacity>
-    </Animated.View>
+        <View style={styles.introTypePreview}>
+          <Text style={styles.introTypePreviewTitle}>診断でわかる5つのタイプ</Text>
+          <View style={styles.introTypeGrid}>
+            {Object.values(FOOD_TYPES).map((type) => (
+              <View key={type.id} style={styles.introTypeItem}>
+                <Text style={styles.introTypeEmoji}>{type.emoji}</Text>
+                <Text style={styles.introTypeName}>{type.name}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.introInfo}>
+          <View style={styles.introInfoItem}>
+            <Text style={styles.introInfoEmoji}>⏱️</Text>
+            <Text style={styles.introInfoText}>所要時間: 約1分</Text>
+          </View>
+          <View style={styles.introInfoItem}>
+            <Text style={styles.introInfoEmoji}>🔄</Text>
+            <Text style={styles.introInfoText}>何度でも再診断OK</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+          <Text style={styles.startButtonText}>診断をはじめる</Text>
+          <ArrowRight size={20} color={colors.white} />
+        </TouchableOpacity>
+      </Animated.View>
+    </ScrollView>
   );
 
   // 質問画面（A/B選択形式）
@@ -526,8 +532,14 @@ const styles = StyleSheet.create({
   },
 
   // Intro
-  introContainer: {
+  introScrollView: {
     flex: 1,
+  },
+  introScrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
+  },
+  introContainer: {
     alignItems: 'center',
   },
   introIconContainer: {
