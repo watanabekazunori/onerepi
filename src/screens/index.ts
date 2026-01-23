@@ -30,3 +30,6 @@ export { CookingFeedbackScreen } from './CookingFeedbackScreen';
 
 // Preference Diagnosis
 export { PreferenceDiagnosisScreen } from './PreferenceDiagnosisScreen';
+
+// My Type Screen
+export { MyTypeScreen } from './MyTypeScreen';

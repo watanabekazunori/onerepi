@@ -29,6 +29,12 @@ export interface StoredWeeklyPlan {
       recipe: Recipe;
       scaleFactor: number;
       isForBento: boolean;
+      // 副菜（オプション）
+      sideDish?: {
+        recipeId: string;
+        recipe: Recipe;
+        reason: string; // 選んだ理由（「野菜でバランス◎」など）
+      };
     };
   };
   sharedIngredients: string[];
@@ -157,6 +163,8 @@ export const convertToWeeklyPlans = (stored: StoredWeeklyPlan): WeeklyPlan[] => 
         scale_factor: planForDay.scaleFactor,
         is_for_bento: planForDay.isForBento,
         created_at: stored.createdAt,
+        // 副菜も含める
+        sideDish: planForDay.sideDish,
       });
     }
   });
@@ -168,6 +176,17 @@ export const convertToWeeklyPlans = (stored: StoredWeeklyPlan): WeeklyPlan[] => 
 // ユーザー設定
 // ============================================
 
+// 新しい心理タイプ診断結果の型
+export interface PsychologyDiagnosisResult {
+  psychologyType?: string;           // FoodPsychologyType
+  rawAnswers?: Array<{
+    questionId: string;
+    selectedOption: 'A' | 'B';
+  }>;
+  purposeScore?: number;
+  adventureScore?: number;
+}
+
 export interface UserPreferences {
   name: string;
   household: number;
@@ -178,8 +197,8 @@ export interface UserPreferences {
   cookingSkill: string;
   kitchenEquipment: string[];
   pantrySeasonings: string[]; // 常備調味料リスト
-  // 好み診断結果（オンボーディングとは別）
-  diagnosisAnswers?: Record<string, string[]>;
+  // 好み診断結果（新形式: 心理タイプ診断 または 旧形式: Record<string, string[]>）
+  diagnosisAnswers?: PsychologyDiagnosisResult | Record<string, string[]>;
   diagnosisCompletedAt?: string;
 }
 

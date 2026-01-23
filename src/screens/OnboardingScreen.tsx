@@ -213,19 +213,20 @@ const getOnboardingMessages = (userName: string): Record<OnboardingStep, Omit<Ch
     },
     {
       type: 'ai',
-      content: 'さて、どっちから始める？',
+      content: 'もう少し詳しい好みも教えてくれる？より良い提案ができるよ✨',
       options: [
-        { id: 'today', label: '今日のレシピを決める', value: 'today', emoji: '🍳' },
-        { id: 'weekly', label: '1週間分の献立を相談', value: 'weekly', emoji: '📅' },
+        { id: 'diagnosis', label: '好み診断もする', value: 'diagnosis', emoji: '✨' },
+        { id: 'skip_diagnosis', label: 'あとでやる', value: 'skip_diagnosis', emoji: '⏭️' },
       ],
     },
   ],
   plan_choice: [
     {
       type: 'ai',
-      content: `OK！${userName}さんにピッタリの献立を一緒に考えよう！`,
+      content: 'OK！さて、どっちから始める？',
       options: [
-        { id: 'start', label: 'さっそく始める！', value: 'start', emoji: '🚀' },
+        { id: 'today', label: '今日のレシピを決める', value: 'today', emoji: '🍳' },
+        { id: 'weekly', label: '1週間分の献立を相談', value: 'weekly', emoji: '📅' },
       ],
     },
   ],
@@ -501,9 +502,23 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
         nextStep = 'kitchen';
         break;
       case 'pantry_seasonings':
-        // 今日のレシピ or 1週間献立の選択
+        // 好み診断するかどうか
+        if (option.value === 'diagnosis') {
+          // 好み診断へ
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          navigation.replace('MainTabs');
+          setTimeout(() => {
+            navigation.navigate('PreferenceDiagnosis' as never);
+          }, 100);
+          return;
+        } else if (option.value === 'skip_diagnosis') {
+          // スキップ → 次の選択へ
+          nextStep = 'plan_choice';
+        }
+        break;
+      case 'plan_choice':
         if (option.value === 'today') {
-          // 今日のレシピ → レシピ一覧へ
+          // 今日のレシピ → メイン画面へ
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           navigation.replace('MainTabs');
           return;
@@ -514,14 +529,6 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
           setTimeout(() => {
             navigation.navigate('DraftMeeting' as never);
           }, 100);
-          return;
-        }
-        nextStep = 'plan_choice';
-        break;
-      case 'plan_choice':
-        if (option.value === 'start') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          navigation.replace('MainTabs');
           return;
         }
         nextStep = 'complete';

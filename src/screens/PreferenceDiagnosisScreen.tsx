@@ -1,6 +1,7 @@
 // ============================================
-// ワンパン・バディ - 好み診断 Screen
-// オンボーディングとは異なる、より深い好み診断
+// ワンパン・バディ - 心理タイプ診断 Screen
+// 2軸マトリクス（機能/快楽 × 安定/探求）による5タイプ分類
+// A/B選択形式の5問診断
 // ============================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -15,127 +16,46 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { X, ChevronRight, Sparkles, Check } from 'lucide-react-native';
+import { RouteProp } from '@react-navigation/native';
+import { X, ChevronRight, Sparkles, ArrowRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
 import { colors, spacing, borderRadius } from '../lib/theme';
 import { getUserPreferences, saveUserPreferences, UserPreferences } from '../lib/storage';
-import { FryingPanIcon } from '../components/ui/FryingPanIcon';
+import {
+  DIAGNOSIS_QUESTIONS,
+  DiagnosisAnswer,
+  DiagnosisResult,
+  calculateDiagnosisResult,
+  FOOD_TYPES,
+  FoodPsychologyType,
+  generateTypeSummary,
+  getTypeRecommendationKeywords,
+} from '../lib/preferenceScoring';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PreferenceDiagnosis'>;
+  route: RouteProp<RootStackParamList, 'PreferenceDiagnosis'>;
 };
 
-// 診断ステップ
-type DiagnosisStep =
-  | 'intro'
-  | 'flavor_profile'      // 味の好み詳細
-  | 'texture_preference'  // 食感の好み
-  | 'cooking_style'       // 調理スタイル
-  | 'cuisine_exploration' // 新しい料理への開放性
-  | 'meal_pattern'        // 食事パターン
-  | 'result';
-
-// 診断質問
-interface DiagnosisQuestion {
-  id: string;
-  question: string;
-  description?: string;
-  options: {
-    id: string;
-    label: string;
-    emoji: string;
-    value: string;
-  }[];
-  multiSelect?: boolean;
-}
-
-const DIAGNOSIS_QUESTIONS: Record<DiagnosisStep, DiagnosisQuestion | null> = {
-  intro: null,
-  flavor_profile: {
-    id: 'flavor_profile',
-    question: '好きな味付けのタイプは？',
-    description: '普段よく選ぶ味付けを教えてね',
-    options: [
-      { id: 'f1', label: '甘め・まろやか', emoji: '🍯', value: 'sweet' },
-      { id: 'f2', label: '塩味・さっぱり', emoji: '🧂', value: 'salty' },
-      { id: 'f3', label: '酸味・爽やか', emoji: '🍋', value: 'sour' },
-      { id: 'f4', label: '辛め・スパイシー', emoji: '🌶️', value: 'spicy' },
-      { id: 'f5', label: 'うま味・こっくり', emoji: '🍖', value: 'umami' },
-    ],
-    multiSelect: true,
-  },
-  texture_preference: {
-    id: 'texture_preference',
-    question: '好きな食感は？',
-    description: '複数選んでOK！',
-    options: [
-      { id: 't1', label: 'カリッと揚げ物', emoji: '🍤', value: 'crispy' },
-      { id: 't2', label: 'トロトロ煮込み', emoji: '🍲', value: 'tender' },
-      { id: 't3', label: 'シャキシャキ野菜', emoji: '🥬', value: 'crunchy' },
-      { id: 't4', label: 'もちもち食感', emoji: '🍡', value: 'chewy' },
-      { id: 't5', label: 'ふわふわ軽め', emoji: '☁️', value: 'fluffy' },
-    ],
-    multiSelect: true,
-  },
-  cooking_style: {
-    id: 'cooking_style',
-    question: '理想の料理スタイルは？',
-    description: 'あなたの料理への向き合い方を教えてね',
-    options: [
-      { id: 'c1', label: '10分で完成！時短派', emoji: '⚡', value: 'quick' },
-      { id: 'c2', label: 'じっくり丁寧に作りたい', emoji: '🎯', value: 'detailed' },
-      { id: 'c3', label: '週末にまとめて作り置き', emoji: '📦', value: 'batch' },
-      { id: 'c4', label: 'その日の気分で自由に', emoji: '🎲', value: 'spontaneous' },
-    ],
-  },
-  cuisine_exploration: {
-    id: 'cuisine_exploration',
-    question: '新しい料理への挑戦は？',
-    description: '普段どれくらい新メニューに挑戦する？',
-    options: [
-      { id: 'e1', label: '定番が安心！いつもの味', emoji: '🏠', value: 'conservative' },
-      { id: 'e2', label: 'たまには新しいのも', emoji: '🌱', value: 'moderate' },
-      { id: 'e3', label: '新レシピ大好き！', emoji: '🚀', value: 'adventurous' },
-      { id: 'e4', label: '世界の料理を制覇したい', emoji: '🌍', value: 'explorer' },
-    ],
-  },
-  meal_pattern: {
-    id: 'meal_pattern',
-    question: '平日の夕食、どんな感じ？',
-    description: '実際の食事パターンを教えてね',
-    options: [
-      { id: 'm1', label: '一汁一菜でシンプルに', emoji: '🍚', value: 'simple' },
-      { id: 'm2', label: '主菜＋副菜2品くらい', emoji: '🍽️', value: 'standard' },
-      { id: 'm3', label: 'ワンプレートで完結', emoji: '🥗', value: 'one_plate' },
-      { id: 'm4', label: '日によってバラバラ', emoji: '🎭', value: 'varies' },
-    ],
-  },
-  result: null,
-};
-
-const STEP_ORDER: DiagnosisStep[] = [
-  'intro',
-  'flavor_profile',
-  'texture_preference',
-  'cooking_style',
-  'cuisine_exploration',
-  'meal_pattern',
-  'result',
-];
+type DiagnosisStep = 'intro' | 'question' | 'result';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
+export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation, route }) => {
+  const isRetake = route.params?.isRetake || false;
   const [currentStep, setCurrentStep] = useState<DiagnosisStep>('intro');
-  const [answers, setAnswers] = useState<Record<string, string[]>>({});
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<DiagnosisAnswer[]>([]);
+  const [result, setResult] = useState<DiagnosisResult | null>(null);
+
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnimA = useRef(new Animated.Value(1)).current;
+  const scaleAnimB = useRef(new Animated.Value(1)).current;
 
-  const currentStepIndex = STEP_ORDER.indexOf(currentStep);
-  const totalSteps = STEP_ORDER.length - 2; // intro と result を除く
-  const progressStepIndex = currentStepIndex - 1; // intro を除いた進捗
+  const totalQuestions = DIAGNOSIS_QUESTIONS.length;
+  const currentQuestion = DIAGNOSIS_QUESTIONS[currentQuestionIndex];
 
   const animateTransition = (callback: () => void) => {
     Animated.parallel([
@@ -145,13 +65,13 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
-        toValue: -50,
+        toValue: -30,
         duration: 200,
         useNativeDriver: true,
       }),
     ]).start(() => {
       callback();
-      slideAnim.setValue(50);
+      slideAnim.setValue(30);
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -167,57 +87,61 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
     });
   };
 
-  const handleOptionSelect = (optionValue: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const question = DIAGNOSIS_QUESTIONS[currentStep];
-    if (!question) return;
-
-    if (question.multiSelect) {
-      // 複数選択可能
-      setSelectedOptions((prev) =>
-        prev.includes(optionValue)
-          ? prev.filter((v) => v !== optionValue)
-          : [...prev, optionValue]
-      );
-    } else {
-      // 単一選択：即座に次へ
-      setAnswers((prev) => ({
-        ...prev,
-        [currentStep]: [optionValue],
-      }));
-      goToNextStep();
-    }
-  };
-
-  const confirmMultiSelect = () => {
-    if (selectedOptions.length === 0) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setAnswers((prev) => ({
-      ...prev,
-      [currentStep]: selectedOptions,
-    }));
-    setSelectedOptions([]);
-    goToNextStep();
-  };
-
-  const goToNextStep = () => {
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < STEP_ORDER.length) {
-      animateTransition(() => {
-        setCurrentStep(STEP_ORDER[nextIndex]);
-      });
-    }
-  };
-
   const handleStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    goToNextStep();
+    animateTransition(() => {
+      setCurrentStep('question');
+    });
+  };
+
+  const handleOptionSelect = (option: 'A' | 'B') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // 選択アニメーション
+    const scaleAnim = option === 'A' ? scaleAnimA : scaleAnimB;
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // 回答を記録
+    const newAnswer: DiagnosisAnswer = {
+      questionId: currentQuestion.id,
+      selectedOption: option,
+    };
+
+    const updatedAnswers = [...answers, newAnswer];
+    setAnswers(updatedAnswers);
+
+    // 次の質問へ、または結果画面へ
+    setTimeout(() => {
+      if (currentQuestionIndex < totalQuestions - 1) {
+        animateTransition(() => {
+          setCurrentQuestionIndex(currentQuestionIndex + 1);
+        });
+      } else {
+        // 診断結果を計算
+        const diagnosisResult = calculateDiagnosisResult(updatedAnswers);
+        setResult(diagnosisResult);
+        animateTransition(() => {
+          setCurrentStep('result');
+        });
+      }
+    }, 300);
   };
 
   const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (!result) return;
 
     // 結果を保存
     try {
@@ -233,12 +157,19 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
         kitchenEquipment: [],
         pantrySeasonings: [],
       };
+
       const updatedPrefs: UserPreferences = {
         ...defaultPrefs,
         ...currentPrefs,
-        diagnosisAnswers: answers,
-        diagnosisCompletedAt: new Date().toISOString(),
+        diagnosisAnswers: {
+          psychologyType: result.type,
+          rawAnswers: answers,
+          purposeScore: result.scores.purposeAxis,
+          adventureScore: result.scores.adventureAxis,
+        },
+        diagnosisCompletedAt: result.answeredAt,
       };
+
       await saveUserPreferences(updatedPrefs);
     } catch (error) {
       console.error('Failed to save diagnosis results:', error);
@@ -252,42 +183,73 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
     navigation.goBack();
   };
 
+  const handleRetry = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAnswers([]);
+    setCurrentQuestionIndex(0);
+    setResult(null);
+    animateTransition(() => {
+      setCurrentStep('question');
+    });
+  };
+
   // イントロ画面
   const renderIntro = () => (
-    <View style={styles.introContainer}>
+    <Animated.View
+      style={[
+        styles.introContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateX: slideAnim }],
+        },
+      ]}
+    >
       <View style={styles.introIconContainer}>
-        <Sparkles size={64} color={colors.primary} />
+        <Text style={styles.introMainEmoji}>🧠</Text>
       </View>
-      <Text style={styles.introTitle}>好み診断</Text>
+
+      <Text style={styles.introTitle}>食の心理タイプ診断</Text>
       <Text style={styles.introSubtitle}>
-        あなたの食の好みをもっと深く知りたい！{'\n'}
-        5つの質問に答えてね 🍳
+        5つの質問であなたの「食の心理タイプ」を診断！{'\n'}
+        ぴったりの献立を提案できるようになるよ
       </Text>
-      <View style={styles.introPoints}>
-        <View style={styles.introPoint}>
-          <Text style={styles.introPointEmoji}>🎯</Text>
-          <Text style={styles.introPointText}>味・食感の好みを分析</Text>
-        </View>
-        <View style={styles.introPoint}>
-          <Text style={styles.introPointEmoji}>🍽️</Text>
-          <Text style={styles.introPointText}>あなたに合った献立提案</Text>
-        </View>
-        <View style={styles.introPoint}>
-          <Text style={styles.introPointEmoji}>✨</Text>
-          <Text style={styles.introPointText}>いつでも再診断OK</Text>
+
+      <View style={styles.introTypePreview}>
+        <Text style={styles.introTypePreviewTitle}>診断でわかる5つのタイプ</Text>
+        <View style={styles.introTypeGrid}>
+          {Object.values(FOOD_TYPES).map((type) => (
+            <View key={type.id} style={styles.introTypeItem}>
+              <Text style={styles.introTypeEmoji}>{type.emoji}</Text>
+              <Text style={styles.introTypeName}>{type.name}</Text>
+            </View>
+          ))}
         </View>
       </View>
+
+      <View style={styles.introInfo}>
+        <View style={styles.introInfoItem}>
+          <Text style={styles.introInfoEmoji}>⏱️</Text>
+          <Text style={styles.introInfoText}>所要時間: 約1分</Text>
+        </View>
+        <View style={styles.introInfoItem}>
+          <Text style={styles.introInfoEmoji}>🔄</Text>
+          <Text style={styles.introInfoText}>何度でも再診断OK</Text>
+        </View>
+      </View>
+
       <TouchableOpacity style={styles.startButton} onPress={handleStart}>
         <Text style={styles.startButtonText}>診断をはじめる</Text>
-        <ChevronRight size={20} color={colors.white} />
+        <ArrowRight size={20} color={colors.white} />
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 
-  // 質問画面
+  // 質問画面（A/B選択形式）
   const renderQuestion = () => {
-    const question = DIAGNOSIS_QUESTIONS[currentStep];
-    if (!question) return null;
+    if (!currentQuestion) return null;
+
+    const situationText = currentQuestion.situation;
+    const questionText = currentQuestion.question;
 
     return (
       <Animated.View
@@ -299,124 +261,99 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
           },
         ]}
       >
-        {/* プログレスバー */}
+        {/* プログレス */}
         <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${((progressStepIndex + 1) / totalSteps) * 100}%` },
-              ]}
-            />
+          <View style={styles.progressDots}>
+            {DIAGNOSIS_QUESTIONS.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.progressDot,
+                  index <= currentQuestionIndex && styles.progressDotActive,
+                  index === currentQuestionIndex && styles.progressDotCurrent,
+                ]}
+              />
+            ))}
           </View>
           <Text style={styles.progressText}>
-            {progressStepIndex + 1} / {totalSteps}
+            Q{currentQuestionIndex + 1} / {totalQuestions}
           </Text>
         </View>
 
-        {/* 質問 */}
-        <View style={styles.questionHeader}>
-          <View style={styles.questionAvatar}>
-            <FryingPanIcon size={32} color={colors.primary} variant="solid" />
-          </View>
-          <View style={styles.questionBubble}>
-            <Text style={styles.questionText}>{question.question}</Text>
-            {question.description && (
-              <Text style={styles.questionDescription}>{question.description}</Text>
-            )}
-          </View>
+        {/* シチュエーション & 質問 */}
+        <View style={styles.questionCard}>
+          <Text style={styles.situationText}>{situationText}</Text>
+          {questionText && (
+            <Text style={styles.questionText}>{questionText}</Text>
+          )}
         </View>
 
-        {/* オプション */}
-        <View style={styles.optionsGrid}>
-          {question.options.map((option) => {
-            const isSelected = question.multiSelect
-              ? selectedOptions.includes(option.value)
-              : answers[currentStep]?.includes(option.value);
-
-            return (
-              <TouchableOpacity
-                key={option.id}
-                style={[styles.optionCard, isSelected && styles.optionCardSelected]}
-                onPress={() => handleOptionSelect(option.value)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.optionEmoji}>{option.emoji}</Text>
-                <Text
-                  style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}
-                >
-                  {option.label}
-                </Text>
-                {isSelected && (
-                  <View style={styles.optionCheck}>
-                    <Check size={16} color={colors.white} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* 複数選択時の確定ボタン */}
-        {question.multiSelect && (
-          <TouchableOpacity
-            style={[
-              styles.confirmButton,
-              selectedOptions.length === 0 && styles.confirmButtonDisabled,
-            ]}
-            onPress={confirmMultiSelect}
-            disabled={selectedOptions.length === 0}
-          >
-            <Text
-              style={[
-                styles.confirmButtonText,
-                selectedOptions.length === 0 && styles.confirmButtonTextDisabled,
-              ]}
+        {/* A/B選択肢 */}
+        <View style={styles.optionsContainer}>
+          <Animated.View style={{ transform: [{ scale: scaleAnimA }] }}>
+            <TouchableOpacity
+              style={[styles.optionButton, styles.optionButtonA]}
+              onPress={() => handleOptionSelect('A')}
+              activeOpacity={0.8}
             >
-              {selectedOptions.length > 0
-                ? `${selectedOptions.length}つ選んで次へ`
-                : '1つ以上選んでね'}
-            </Text>
-            <ChevronRight
-              size={18}
-              color={selectedOptions.length > 0 ? colors.white : colors.textMuted}
-            />
-          </TouchableOpacity>
-        )}
+              <View style={styles.optionLabelBadge}>
+                <Text style={styles.optionLabelBadgeText}>A</Text>
+              </View>
+              <Text style={styles.optionText}>
+                {currentQuestion.optionA.text}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <View style={styles.optionDivider}>
+            <View style={styles.optionDividerLine} />
+            <Text style={styles.optionDividerText}>or</Text>
+            <View style={styles.optionDividerLine} />
+          </View>
+
+          <Animated.View style={{ transform: [{ scale: scaleAnimB }] }}>
+            <TouchableOpacity
+              style={[styles.optionButton, styles.optionButtonB]}
+              onPress={() => handleOptionSelect('B')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.optionLabelBadge, styles.optionLabelBadgeB]}>
+                <Text style={styles.optionLabelBadgeText}>B</Text>
+              </View>
+              <Text style={styles.optionText}>
+                {currentQuestion.optionB.text}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        {/* ヒント */}
+        <Text style={styles.questionHint}>
+          直感で選んでね！深く考えなくてOK 🙌
+        </Text>
       </Animated.View>
     );
   };
 
   // 結果画面
   const renderResult = () => {
-    // 診断結果のサマリーを生成
-    const flavorLabels: Record<string, string> = {
-      sweet: '甘め・まろやか',
-      salty: '塩味・さっぱり',
-      sour: '酸味・爽やか',
-      spicy: '辛め・スパイシー',
-      umami: 'うま味・こっくり',
+    if (!result) return null;
+
+    const { typeInfo, scores } = result;
+    const keywords = getTypeRecommendationKeywords(result.type);
+
+    // 2軸の傾向を日本語で表現
+    const getPurposeTendency = () => {
+      if (scores.purposeAxis < -30) return '効率・健康重視';
+      if (scores.purposeAxis > 30) return '味・快楽重視';
+      return 'バランス型';
     };
 
-    const styleLabels: Record<string, string> = {
-      quick: '時短派',
-      detailed: 'じっくり派',
-      batch: '作り置き派',
-      spontaneous: '気分派',
+    const getAdventureTendency = () => {
+      if (scores.adventureAxis < -30) return '安定・定番志向';
+      if (scores.adventureAxis > 30) return '探求・冒険志向';
+      return 'バランス型';
     };
-
-    const explorationLabels: Record<string, string> = {
-      conservative: '定番派',
-      moderate: 'バランス派',
-      adventurous: '挑戦派',
-      explorer: '冒険派',
-    };
-
-    const selectedFlavors = (answers.flavor_profile || [])
-      .map((v) => flavorLabels[v])
-      .filter(Boolean);
-    const selectedStyle = answers.cooking_style?.[0];
-    const selectedExploration = answers.cuisine_exploration?.[0];
 
     return (
       <Animated.View
@@ -428,51 +365,105 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
           },
         ]}
       >
-        <View style={styles.resultHeader}>
-          <Text style={styles.resultTitle}>診断完了！ 🎉</Text>
-          <Text style={styles.resultSubtitle}>
-            あなたの好みがわかりました
-          </Text>
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* ヘッダー */}
+          <View style={styles.resultHeader}>
+            <Text style={styles.resultPreTitle}>あなたのタイプは...</Text>
+          </View>
 
-        <View style={styles.resultCard}>
-          <View style={styles.resultSection}>
-            <Text style={styles.resultLabel}>🍴 味の好み</Text>
-            <View style={styles.resultTags}>
-              {selectedFlavors.map((flavor, index) => (
-                <View key={index} style={styles.resultTag}>
-                  <Text style={styles.resultTagText}>{flavor}</Text>
+          {/* メインタイプカード */}
+          <View style={[styles.resultTypeCard, { backgroundColor: typeInfo.color + '15' }]}>
+            <View style={[styles.resultTypeIconBg, { backgroundColor: typeInfo.color + '30' }]}>
+              <Text style={styles.resultTypeEmoji}>{typeInfo.emoji}</Text>
+            </View>
+            <Text style={[styles.resultTypeName, { color: typeInfo.color }]}>
+              {typeInfo.name}
+            </Text>
+            <Text style={styles.resultTypeShort}>{typeInfo.shortDescription}</Text>
+            <Text style={styles.resultTypeDescription}>{typeInfo.fullDescription}</Text>
+          </View>
+
+          {/* 2軸の傾向 */}
+          <View style={styles.axisSection}>
+            <Text style={styles.axisSectionTitle}>あなたの傾向</Text>
+            <View style={styles.axisCards}>
+              <View style={styles.axisCard}>
+                <Text style={styles.axisCardLabel}>食の目的</Text>
+                <Text style={styles.axisCardValue}>{getPurposeTendency()}</Text>
+                <View style={styles.axisBar}>
+                  <Text style={styles.axisBarLabel}>機能</Text>
+                  <View style={styles.axisBarTrack}>
+                    <View
+                      style={[
+                        styles.axisBarIndicator,
+                        { left: `${((scores.purposeAxis + 100) / 200) * 100}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.axisBarLabel}>快楽</Text>
+                </View>
+              </View>
+
+              <View style={styles.axisCard}>
+                <Text style={styles.axisCardLabel}>冒険度</Text>
+                <Text style={styles.axisCardValue}>{getAdventureTendency()}</Text>
+                <View style={styles.axisBar}>
+                  <Text style={styles.axisBarLabel}>安定</Text>
+                  <View style={styles.axisBarTrack}>
+                    <View
+                      style={[
+                        styles.axisBarIndicator,
+                        { left: `${((scores.adventureAxis + 100) / 200) * 100}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.axisBarLabel}>探求</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* おすすめキーワード */}
+          <View style={styles.keywordsSection}>
+            <Text style={styles.keywordsSectionTitle}>
+              あなたにおすすめのキーワード
+            </Text>
+            <View style={styles.keywordsTags}>
+              {keywords.map((keyword, index) => (
+                <View
+                  key={index}
+                  style={[styles.keywordTag, { backgroundColor: typeInfo.color + '20' }]}
+                >
+                  <Text style={[styles.keywordTagText, { color: typeInfo.color }]}>
+                    #{keyword}
+                  </Text>
                 </View>
               ))}
             </View>
           </View>
 
-          <View style={styles.resultDivider} />
+          {/* 注釈 */}
+          <Text style={styles.resultNote}>
+            この結果をもとに、あなたにぴったりの献立を優先的に提案するよ！
+          </Text>
 
-          <View style={styles.resultSection}>
-            <Text style={styles.resultLabel}>👨‍🍳 料理スタイル</Text>
-            <Text style={styles.resultValue}>
-              {selectedStyle ? styleLabels[selectedStyle] : '-'}
-            </Text>
+          {/* ボタン */}
+          <View style={styles.resultButtons}>
+            <TouchableOpacity
+              style={[styles.resultButton, styles.resultButtonPrimary]}
+              onPress={handleComplete}
+            >
+              <Text style={styles.resultButtonPrimaryText}>この結果で保存</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.resultButton, styles.resultButtonSecondary]}
+              onPress={handleRetry}
+            >
+              <Text style={styles.resultButtonSecondaryText}>もう一度診断する</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={styles.resultDivider} />
-
-          <View style={styles.resultSection}>
-            <Text style={styles.resultLabel}>🌟 新しい料理への姿勢</Text>
-            <Text style={styles.resultValue}>
-              {selectedExploration ? explorationLabels[selectedExploration] : '-'}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.resultNote}>
-          この診断結果をもとに、あなたにぴったりの献立を提案するよ！
-        </Text>
-
-        <TouchableOpacity style={styles.completeButton} onPress={handleComplete}>
-          <Text style={styles.completeButtonText}>診断を保存して閉じる</Text>
-        </TouchableOpacity>
+        </ScrollView>
       </Animated.View>
     );
   };
@@ -484,19 +475,15 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
           <X size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>✨ 好み診断</Text>
+        <Text style={styles.headerTitle}>🧠 食の心理タイプ診断</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.content}>
         {currentStep === 'intro' && renderIntro()}
+        {currentStep === 'question' && renderQuestion()}
         {currentStep === 'result' && renderResult()}
-        {currentStep !== 'intro' && currentStep !== 'result' && renderQuestion()}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };
@@ -504,7 +491,7 @@ export const PreferenceDiagnosisScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFF8F0',
   },
 
   // Header
@@ -525,7 +512,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: colors.text,
   },
@@ -535,286 +522,391 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-  },
-  contentContainer: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
 
   // Intro
   introContainer: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: spacing.xl,
   },
   introIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.primaryLight + '30',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    marginTop: spacing.md,
+  },
+  introMainEmoji: {
+    fontSize: 48,
   },
   introTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   introSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.xl,
+    lineHeight: 22,
+    marginBottom: spacing.lg,
   },
-  introPoints: {
+  introTypePreview: {
     width: '100%',
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  introTypePreviewTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  introTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  introTypeItem: {
+    alignItems: 'center',
+    width: 60,
+  },
+  introTypeEmoji: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
+  introTypeName: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  introInfo: {
+    flexDirection: 'row',
+    gap: spacing.lg,
     marginBottom: spacing.xl,
   },
-  introPoint: {
+  introInfoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    gap: spacing.xs,
   },
-  introPointEmoji: {
-    fontSize: 24,
-    marginRight: spacing.md,
+  introInfoEmoji: {
+    fontSize: 16,
   },
-  introPointText: {
-    fontSize: 15,
-    color: colors.text,
+  introInfoText: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
     borderRadius: borderRadius.full,
-    gap: spacing.xs,
+    gap: spacing.sm,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   startButtonText: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.white,
-  },
-
-  // Progress
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  progressBar: {
-    flex: 1,
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: '600',
   },
 
   // Question
   questionContainer: {
     flex: 1,
   },
-  questionHeader: {
+  progressContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
-  questionAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primaryLight + '30',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  questionBubble: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    borderTopLeftRadius: 4,
-    padding: spacing.md,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  questionDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-
-  // Options Grid
-  optionsGrid: {
-    gap: spacing.sm,
-  },
-  optionCard: {
+  progressDots: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    position: 'relative',
+    gap: 8,
   },
-  optionCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight + '15',
-  },
-  optionEmoji: {
-    fontSize: 28,
-    marginRight: spacing.md,
-  },
-  optionLabel: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-    fontWeight: '500',
-  },
-  optionLabelSelected: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  optionCheck: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Confirm Button (for multi-select)
-  confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginTop: spacing.lg,
-    gap: spacing.xs,
-  },
-  confirmButtonDisabled: {
+  progressDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.border,
   },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
+  progressDotActive: {
+    backgroundColor: colors.primary + '50',
   },
-  confirmButtonTextDisabled: {
+  progressDotCurrent: {
+    backgroundColor: colors.primary,
+    width: 24,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.textMuted,
   },
-
-  // Result
-  resultContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  resultHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  resultTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  resultSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  resultCard: {
-    width: '100%',
+  questionCard: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  resultSection: {
-    paddingVertical: spacing.sm,
-  },
-  resultLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  resultValue: {
+  situationText: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: spacing.xs,
+    lineHeight: 26,
   },
-  resultTags: {
+  questionText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  optionsContainer: {
+    gap: spacing.md,
+  },
+  optionButton: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.border,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+    alignItems: 'center',
+    gap: spacing.md,
   },
-  resultTag: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
+  optionButtonA: {
+    borderColor: '#4A90D9' + '50',
   },
-  resultTagText: {
-    fontSize: 14,
+  optionButtonB: {
+    borderColor: '#E91E63' + '50',
+  },
+  optionLabelBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4A90D9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionLabelBadgeB: {
+    backgroundColor: '#E91E63',
+  },
+  optionLabelBadgeText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.white,
-    fontWeight: '600',
   },
-  resultDivider: {
+  optionText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  optionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  optionDividerLine: {
+    flex: 1,
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: spacing.sm,
   },
-  resultNote: {
+  optionDividerText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  questionHint: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+
+  // Result
+  resultContainer: {
+    flex: 1,
+  },
+  resultHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  resultPreTitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  resultTypeCard: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  resultTypeIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  resultTypeEmoji: {
+    fontSize: 40,
+  },
+  resultTypeName: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  resultTypeShort: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  resultTypeDescription: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  axisSection: {
     marginBottom: spacing.lg,
   },
-  completeButton: {
+  axisSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  axisCards: {
+    gap: spacing.sm,
+  },
+  axisCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  axisCardLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  axisCardValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  axisBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  axisBarLabel: {
+    fontSize: 10,
+    color: colors.textMuted,
+    width: 28,
+  },
+  axisBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    position: 'relative',
+  },
+  axisBarIndicator: {
+    position: 'absolute',
+    top: -3,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    marginLeft: -6,
+    borderWidth: 2,
+    borderColor: colors.white,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  keywordsSection: {
+    marginBottom: spacing.md,
+  },
+  keywordsSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  keywordsTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  keywordTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
     borderRadius: borderRadius.full,
-    width: '100%',
+  },
+  keywordTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  resultNote: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  resultButtons: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  resultButton: {
+    paddingVertical: 16,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
   },
-  completeButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
+  resultButtonPrimary: {
+    backgroundColor: colors.primary,
+  },
+  resultButtonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.white,
+  },
+  resultButtonSecondary: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resultButtonSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
 });

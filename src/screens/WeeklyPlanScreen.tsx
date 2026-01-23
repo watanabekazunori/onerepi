@@ -449,6 +449,10 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
             {selectedDayPlans.length > 0 ? (
               selectedDayPlans.map((plan) => (
                 <View key={plan.id} style={styles.mealCard}>
+                  {/* 主菜ラベル（副菜がある場合のみ表示） */}
+                  {plan.sideDish && (
+                    <Text style={styles.dishTypeLabel}>🍳 主菜</Text>
+                  )}
                   <TouchableOpacity
                     style={styles.mealCardContent}
                     onPress={() => handleRecipeDetail(plan.recipe_id)}
@@ -473,22 +477,55 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
                     </View>
                     <ChevronRight size={20} color={brandColors.textMuted} />
                   </TouchableOpacity>
+
+                  {/* 保存された副菜を表示 */}
+                  {plan.sideDish && (
+                    <View style={styles.savedSideDishContainer}>
+                      <Text style={styles.dishTypeLabel}>🥗 副菜</Text>
+                      <TouchableOpacity
+                        style={styles.savedSideDishCard}
+                        onPress={() => handleRecipeDetail(plan.sideDish!.recipeId)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.mealEmoji}>
+                          <Text style={styles.sideDishEmojiText}>{plan.sideDish.recipe.emoji}</Text>
+                        </View>
+                        <View style={styles.mealInfo}>
+                          <Text style={styles.sideDishName}>{plan.sideDish.recipe.name}</Text>
+                          <View style={styles.mealMeta}>
+                            <View style={styles.sideDishReasonBadge}>
+                              <Sparkles size={10} color={brandColors.primary} />
+                              <Text style={styles.sideDishReasonText}>{plan.sideDish.reason}</Text>
+                            </View>
+                            <Text style={styles.mealTime}>
+                              {plan.sideDish.recipe.cooking_time_minutes}分
+                            </Text>
+                          </View>
+                        </View>
+                        <ChevronRight size={16} color={brandColors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
                   <View style={styles.mealCardActions}>
-                    <TouchableOpacity
-                      style={[
-                        styles.sideDishButton,
-                        expandedPlanId === plan.id && styles.sideDishButtonActive
-                      ]}
-                      onPress={() => plan.recipe && handleToggleSideDish(plan.id, plan.recipe)}
-                    >
-                      <Utensils size={14} color={expandedPlanId === plan.id ? brandColors.white : brandColors.primary} />
-                      <Text style={[
-                        styles.sideDishButtonText,
-                        expandedPlanId === plan.id && styles.sideDishButtonTextActive
-                      ]}>
-                        {expandedPlanId === plan.id ? '閉じる' : 'もう一品'}
-                      </Text>
-                    </TouchableOpacity>
+                    {/* 副菜がない場合のみ「もう一品」ボタンを表示 */}
+                    {!plan.sideDish && (
+                      <TouchableOpacity
+                        style={[
+                          styles.sideDishButton,
+                          expandedPlanId === plan.id && styles.sideDishButtonActive
+                        ]}
+                        onPress={() => plan.recipe && handleToggleSideDish(plan.id, plan.recipe)}
+                      >
+                        <Utensils size={14} color={expandedPlanId === plan.id ? brandColors.white : brandColors.primary} />
+                        <Text style={[
+                          styles.sideDishButtonText,
+                          expandedPlanId === plan.id && styles.sideDishButtonTextActive
+                        ]}>
+                          {expandedPlanId === plan.id ? '閉じる' : 'もう一品'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       style={styles.cookNowButtonSmall}
                       onPress={() => handlePlanPress(plan)}
@@ -1175,6 +1212,51 @@ const styles = StyleSheet.create({
   },
   refreshButtonText: {
     fontSize: 13,
+    fontWeight: '600',
+    color: brandColors.primary,
+  },
+
+  // 保存された副菜の表示スタイル
+  dishTypeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: brandColors.textMuted,
+    marginLeft: 16,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  savedSideDishContainer: {
+    borderTopWidth: 1,
+    borderTopColor: brandColors.border,
+    backgroundColor: brandColors.primarySoft,
+  },
+  savedSideDishCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sideDishEmojiText: {
+    fontSize: 20,
+  },
+  sideDishName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brandColors.text,
+    marginBottom: 2,
+  },
+  sideDishReasonBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+    marginRight: 8,
+  },
+  sideDishReasonText: {
+    fontSize: 10,
     fontWeight: '600',
     color: brandColors.primary,
   },

@@ -55,7 +55,14 @@ import {
   saveUserPreferences,
   DEFAULT_SEASONINGS,
   getAllSeasoningOptions,
+  UserPreferences,
 } from '../lib/storage';
+import {
+  FOOD_TYPES,
+  FoodPsychologyType,
+  DiagnosisAnswers,
+  getTypeRecommendationKeywords,
+} from '../lib/preferenceScoring';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -88,6 +95,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [pantrySeasonings, setPantrySeasonings] = useState<string[]>([]);
   const [showSeasoningsModal, setShowSeasoningsModal] = useState(false);
   const [selectedSeasonings, setSelectedSeasonings] = useState<Set<string>>(new Set());
+  const [diagnosisType, setDiagnosisType] = useState<FoodPsychologyType | null>(null);
+  const [diagnosisDate, setDiagnosisDate] = useState<string | null>(null);
 
   // 統計と常備調味料を読み込み
   useFocusEffect(
@@ -104,6 +113,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         setFavoritesCount(favorites.length);
         if (prefs?.pantrySeasonings) {
           setPantrySeasonings(prefs.pantrySeasonings);
+        }
+        // 診断結果を読み込み
+        if (prefs?.diagnosisAnswers) {
+          const diagnosisAnswers = prefs.diagnosisAnswers as DiagnosisAnswers;
+          if (diagnosisAnswers.psychologyType) {
+            setDiagnosisType(diagnosisAnswers.psychologyType);
+          }
+        }
+        if (prefs?.diagnosisCompletedAt) {
+          setDiagnosisDate(prefs.diagnosisCompletedAt);
         }
       };
       loadData();
@@ -297,6 +316,72 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         )}
 
+        {/* Food Psychology Type Card */}
+        {diagnosisType && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>あなたの食タイプ</Text>
+            <TouchableOpacity
+              style={[
+                styles.diagnosisCard,
+                { backgroundColor: FOOD_TYPES[diagnosisType].color + '15' },
+              ]}
+              onPress={() => navigation.navigate('MyType')}
+            >
+              <View style={styles.diagnosisMain}>
+                <View
+                  style={[
+                    styles.diagnosisIconBg,
+                    { backgroundColor: FOOD_TYPES[diagnosisType].color + '30' },
+                  ]}
+                >
+                  <Text style={styles.diagnosisEmoji}>
+                    {FOOD_TYPES[diagnosisType].emoji}
+                  </Text>
+                </View>
+                <View style={styles.diagnosisInfo}>
+                  <Text
+                    style={[
+                      styles.diagnosisTypeName,
+                      { color: FOOD_TYPES[diagnosisType].color },
+                    ]}
+                  >
+                    {FOOD_TYPES[diagnosisType].name}
+                  </Text>
+                  <Text style={styles.diagnosisShort}>
+                    {FOOD_TYPES[diagnosisType].shortDescription}
+                  </Text>
+                </View>
+                <ChevronRight size={20} color={colors.textMuted} />
+              </View>
+              <View style={styles.diagnosisKeywords}>
+                {getTypeRecommendationKeywords(diagnosisType).slice(0, 4).map((keyword, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.diagnosisKeywordTag,
+                      { backgroundColor: FOOD_TYPES[diagnosisType].color + '20' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.diagnosisKeywordText,
+                        { color: FOOD_TYPES[diagnosisType].color },
+                      ]}
+                    >
+                      #{keyword}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              {diagnosisDate && (
+                <Text style={styles.diagnosisDate}>
+                  診断日: {new Date(diagnosisDate).toLocaleDateString('ja-JP')}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Quick Links */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>機能</Text>
@@ -340,15 +425,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
+            {/* マイタイプ画面（診断済みの場合） */}
+            {diagnosisType && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate('MyType')}
+              >
+                <View style={styles.menuLeft}>
+                  <Award size={20} color={FOOD_TYPES[diagnosisType].color} />
+                  <Text style={styles.menuLabel}>マイタイプ</Text>
+                </View>
+                <View style={styles.menuRight}>
+                  <Text style={[styles.menuBadge, { color: FOOD_TYPES[diagnosisType].color }]}>
+                    {FOOD_TYPES[diagnosisType].emoji} {FOOD_TYPES[diagnosisType].name}
+                  </Text>
+                  <ChevronRight size={20} color={colors.textMuted} />
+                </View>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => navigation.navigate('PreferenceDiagnosis')}
+              onPress={() => navigation.navigate('PreferenceDiagnosis', { isRetake: !!diagnosisType })}
             >
               <View style={styles.menuLeft}>
                 <Sparkles size={20} color="#FFB800" />
-                <Text style={styles.menuLabel}>好み診断</Text>
+                <Text style={styles.menuLabel}>
+                  {diagnosisType ? '食タイプ再診断' : '食の心理タイプ診断'}
+                </Text>
               </View>
-              <ChevronRight size={20} color={colors.textMuted} />
+              <View style={styles.menuRight}>
+                {!diagnosisType && (
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                )}
+                <ChevronRight size={20} color={colors.textMuted} />
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -807,6 +920,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
+  newBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.xs,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.white,
+  },
 
   // Profile Card
   profileCard: {
@@ -1155,5 +1280,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
+  },
+
+  // Diagnosis Card
+  diagnosisCard: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+  },
+  diagnosisMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  diagnosisIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  diagnosisEmoji: {
+    fontSize: 28,
+  },
+  diagnosisInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  diagnosisTypeName: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  diagnosisShort: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  diagnosisKeywords: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  diagnosisKeywordTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+  },
+  diagnosisKeywordText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  diagnosisDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    textAlign: 'right',
   },
 });

@@ -36,6 +36,22 @@ import { ChatBubble } from '../components/chat/ChatBubble';
 import { saveWeeklyPlan, StoredWeeklyPlan, getUserPreferences, UserPreferences, getWeeklyPlans } from '../lib/storage';
 import { colors, spacing, borderRadius } from '../lib/theme';
 import { suggestSideDishes, SideDishSuggestion } from '../lib/sideDishSuggester';
+import {
+  scoreRecipeByPreference,
+  DiagnosisAnswers,
+  FOOD_TYPES,
+  FoodPsychologyType
+} from '../lib/preferenceScoring';
+import {
+  generatePsychologyBasedWeeklyPlan,
+  getPsychologyPlanSummary,
+  getRecipeTypeMatchDescription,
+  initializeRecipeClassifications,
+} from '../lib/weeklyPlanGenerator';
+import {
+  getWeeklyMixConfig,
+  getConfidenceLevel,
+} from '../lib/userTypeLearning';
 
 type DraftMeetingScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DraftMeeting'>;
@@ -239,9 +255,19 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   };
 
   const generateWeeklyPlan = async () => {
-    const messageText = includeSideDish
+    // ユーザーの心理タイプを取得
+    const diagnosisAnswers = userPrefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
+    const psychologyType = diagnosisAnswers?.psychologyType as FoodPsychologyType | undefined;
+    const typeInfo = psychologyType ? FOOD_TYPES[psychologyType] : null;
+
+    // タイプに応じたパーソナライズメッセージ
+    let messageText = includeSideDish
       ? 'ちょっと待ってね...主菜と副菜を考えています 🤔'
       : 'ちょっと待ってね...1週間分の献立を考えています 🤔';
+
+    if (typeInfo) {
+      messageText = `${typeInfo.emoji} ${typeInfo.name}タイプのあなたに合わせて、献立を考えています...`;
+    }
 
     await addMessage({
       type: 'ai',
@@ -256,22 +282,65 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     setWeeklyPlan(plan.recipes);
     setSharedIngredients(plan.sharedIngredients);
 
-    // 副菜も生成
+    // 副菜も生成（重複しないように管理）
     if (includeSideDish) {
       const sideDishes: SideDishPlan = {};
+      const usedSideDishIds = new Set<string>(); // 副菜の重複防止用
+      // 主菜で使ったレシピIDも除外
+      const mainRecipeIds = new Set(Object.values(plan.recipes).filter(r => r).map(r => r!.id));
+
+      console.log('[SideDish] Starting side dish generation, main recipe count:', mainRecipeIds.size);
+
       DAYS_ORDER.forEach((day) => {
         const mainRecipe = plan.recipes[day];
         if (mainRecipe) {
-          const suggestions = suggestSideDishes(mainRecipe, 1);
-          sideDishes[day] = suggestions[0] || null;
+          // より多くの候補を取得して、使用済み＆主菜を除外
+          const suggestions = suggestSideDishes(mainRecipe, 15);
+          console.log(`[SideDish] ${day}: Got ${suggestions.length} suggestions for main: ${mainRecipe.name}`);
+
+          const availableSideDish = suggestions.find(
+            s => !usedSideDishIds.has(s.recipe.id) && !mainRecipeIds.has(s.recipe.id)
+          );
+
+          if (availableSideDish) {
+            sideDishes[day] = availableSideDish;
+            usedSideDishIds.add(availableSideDish.recipe.id);
+            console.log(`[SideDish] ${day}: Selected: ${availableSideDish.recipe.name}`);
+          } else if (suggestions.length > 0) {
+            // 全て使用済みの場合は主菜でないものから選ぶ
+            const fallback = suggestions.find(s => !mainRecipeIds.has(s.recipe.id));
+            if (fallback) {
+              sideDishes[day] = fallback;
+              console.log(`[SideDish] ${day}: Fallback selected: ${fallback.recipe.name}`);
+            } else {
+              sideDishes[day] = suggestions[0];
+              console.log(`[SideDish] ${day}: Last resort: ${suggestions[0].recipe.name}`);
+            }
+          } else {
+            sideDishes[day] = null;
+            console.log(`[SideDish] ${day}: No suggestions available!`);
+          }
         }
       });
+      console.log('[SideDish] Final side dishes:', Object.keys(sideDishes).length);
       setSideDishPlan(sideDishes);
     }
 
-    const completeMessage = includeSideDish
+    // タイプに応じた完了メッセージ
+    let completeMessage = includeSideDish
       ? '主菜と副菜、1週間分の献立ができたよ！ 🎉'
       : '1週間分の献立ができたよ！ 🎉';
+
+    if (typeInfo) {
+      const typeMessages: Record<FoodPsychologyType, string> = {
+        smart_balancer: '効率よく栄養バランスの取れた献立にしたよ！',
+        stoic_creator: 'ヘルシーで体づくりに良い献立にしたよ！',
+        healing_gourmet: 'ほっこり癒される家庭的な献立にしたよ！',
+        trend_hunter: 'ワクワクする新しい味を取り入れた献立にしたよ！',
+        balanced: 'バランスの良い献立にしたよ！',
+      };
+      completeMessage = `${typeMessages[psychologyType!]} 🎉`;
+    }
 
     await addMessage({
       type: 'ai',
@@ -298,10 +367,66 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     setCurrentStep('weekly_plan_preview');
   };
 
-  const createWeeklyPlan = (): { recipes: WeeklyPlanDraft; sharedIngredients: string[] } => {
+  const createWeeklyPlan = (): { recipes: WeeklyPlanDraft; sharedIngredients: string[]; slotTypes?: string[] } => {
     const plan: WeeklyPlanDraft = {};
     const usedRecipeIds = new Set<string>();
     const ingredientCount: Record<string, number> = {};
+
+    // === 心理タイプ別生成を試みる ===
+    const diagnosisAnswers = userPrefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
+    const psychologyType = diagnosisAnswers?.psychologyType as FoodPsychologyType | undefined;
+
+    if (psychologyType) {
+      try {
+        // レシピ分類を初期化
+        initializeRecipeClassifications();
+
+        // 学習データから信頼度を取得（仮：初期値は0）
+        const confidenceLevel = 0; // TODO: UserLearningProfileから取得
+
+        // 心理タイプ別週間献立を生成
+        const generatedPlan = generatePsychologyBasedWeeklyPlan({
+          psychologyType,
+          confidenceLevel,
+          servings: userPrefs?.household || 2,
+          recentRecipeIds: Array.from(recentRecipeIds),
+          excludeIngredients: [
+            ...(userPrefs?.dislikes || []),
+            ...(userPrefs?.allergies || []),
+          ],
+        });
+
+        // 生成結果をWeeklyPlanDraft形式に変換
+        generatedPlan.plans.forEach(dayPlan => {
+          plan[dayPlan.dayOfWeek] = dayPlan.recipe;
+          usedRecipeIds.add(dayPlan.recipe.id);
+
+          // 食材カウント
+          dayPlan.recipe.ingredients.forEach(ing => {
+            ingredientCount[ing.name] = (ingredientCount[ing.name] || 0) + 1;
+          });
+        });
+
+        // 複数回使われる食材を抽出
+        const sharedIngredients = Object.entries(ingredientCount)
+          .filter(([_, count]) => count >= 2)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name]) => name);
+
+        return {
+          recipes: plan,
+          sharedIngredients: sharedIngredients.length > 0
+            ? sharedIngredients
+            : generatedPlan.sharedIngredients,
+        };
+      } catch (error) {
+        console.error('[DraftMeeting] Psychology-based generation failed, falling back to default:', error);
+        // フォールバック: 従来の生成ロジックを使用
+      }
+    }
+
+    // === 従来の生成ロジック（心理タイプがない場合のフォールバック） ===
 
     // フィルタリング用のタグ
     const getStyleTags = (): string[] => {
@@ -454,22 +579,96 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
     // レシピプールをシャッフル（ランダム性を高める）
     const shuffledPool = [...recipePool].sort(() => Math.random() - 0.5);
 
-    // 各曜日にレシピを割り当て
-    DAYS_ORDER.forEach((day) => {
-      const availableRecipes = shuffledPool.filter(r => !usedRecipeIds.has(r.id));
+    // 【新機能】余りそうな食材を追跡（翌日に使い回す）
+    // 「余りが出やすい食材」= 半端な量で使う野菜・タンパク質
+    const leftoverIngredients: Set<string> = new Set();
+
+    // 余りが出やすい食材リスト（1パック/1個を使い切れない）
+    const LEFTOVER_PRONE_INGREDIENTS = [
+      'キャベツ', '白菜', '大根', 'にんじん', '玉ねぎ', 'ねぎ', '長ネギ',
+      'もやし', 'ほうれん草', '小松菜', 'ブロッコリー', 'しめじ', 'えのき',
+      '豆腐', '油揚げ', '鶏むね肉', '鶏もも肉', '豚バラ', '豚こま',
+      'ひき肉', '鶏ひき肉', '豚ひき肉', '合い挽き肉',
+    ];
+
+    // 各曜日にレシピを割り当て（食材の使い回しを最適化）
+    DAYS_ORDER.forEach((day, dayIndex) => {
+      let availableRecipes = shuffledPool.filter(r => !usedRecipeIds.has(r.id));
 
       if (availableRecipes.length > 0) {
-        // 上位10件からランダムに選択（バリエーションを増やす）
-        const topCount = Math.min(10, availableRecipes.length);
-        const index = Math.floor(Math.random() * topCount);
-        const recipe = availableRecipes[index];
-        plan[day] = recipe;
-        usedRecipeIds.add(recipe.id);
+        let selectedRecipe: Recipe | null = null;
+
+        // 【優先度1】前日からの余り食材を使えるレシピを探す
+        if (leftoverIngredients.size > 0) {
+          const recipesUsingLeftovers = availableRecipes
+            .map(recipe => {
+              const matchCount = recipe.ingredients.filter(ing =>
+                leftoverIngredients.has(ing.name)
+              ).length;
+              return { recipe, matchCount };
+            })
+            .filter(({ matchCount }) => matchCount > 0)
+            .sort((a, b) => b.matchCount - a.matchCount);
+
+          if (recipesUsingLeftovers.length > 0) {
+            // 余り食材を使えるレシピの上位3つからランダム選択
+            const topCount = Math.min(3, recipesUsingLeftovers.length);
+            const selected = recipesUsingLeftovers[Math.floor(Math.random() * topCount)];
+            selectedRecipe = selected.recipe;
+
+            // 使った余り食材を削除
+            selectedRecipe.ingredients.forEach(ing => {
+              leftoverIngredients.delete(ing.name);
+            });
+          }
+        }
+
+        // 【優先度2】好み診断スコアを考慮した選択
+        if (!selectedRecipe) {
+          // 好み診断の回答がある場合はスコアリング
+          const diagnosisAnswers = userPrefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
+
+          if (diagnosisAnswers && Object.keys(diagnosisAnswers).length > 0) {
+            // スコアリングして上位から選択
+            const scoredRecipes = availableRecipes
+              .map(recipe => ({
+                recipe,
+                score: scoreRecipeByPreference(recipe, diagnosisAnswers).totalScore,
+              }))
+              .sort((a, b) => b.score - a.score);
+
+            // 上位5件からランダムに選択（バリエーション確保）
+            const topCount = Math.min(5, scoredRecipes.length);
+            const index = Math.floor(Math.random() * topCount);
+            selectedRecipe = scoredRecipes[index].recipe;
+          } else {
+            // 診断なしの場合は従来通りランダム
+            const topCount = Math.min(10, availableRecipes.length);
+            const index = Math.floor(Math.random() * topCount);
+            selectedRecipe = availableRecipes[index];
+          }
+        }
+
+        plan[day] = selectedRecipe;
+        usedRecipeIds.add(selectedRecipe.id);
 
         // 食材カウント
-        recipe.ingredients.forEach(ing => {
+        selectedRecipe.ingredients.forEach(ing => {
           ingredientCount[ing.name] = (ingredientCount[ing.name] || 0) + 1;
         });
+
+        // 【新機能】余りそうな食材を記録（次の日に使う）
+        // 週の最終日（日曜）以外で、余りが出やすい食材を追跡
+        if (dayIndex < DAYS_ORDER.length - 1) {
+          selectedRecipe.ingredients.forEach(ing => {
+            if (LEFTOVER_PRONE_INGREDIENTS.some(name => ing.name.includes(name))) {
+              // 少量しか使わない場合は余りが出る
+              if (ing.category === 'vegetable' || ing.category === 'protein') {
+                leftoverIngredients.add(ing.name);
+              }
+            }
+          });
+        }
       } else {
         // 足りない場合は全レシピからランダムに選択
         const allAvailable = MOCK_RECIPES.filter(r => !usedRecipeIds.has(r.id));
@@ -508,15 +707,24 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    // 各曜日のレシピを格納
+    // 各曜日のレシピを格納（副菜も含む）
     DAYS_ORDER.forEach((day) => {
       const recipe = weeklyPlan[day];
+      const sideDish = sideDishPlan[day];
       if (recipe) {
         storedPlan.plans[day] = {
           recipeId: recipe.id,
           recipe,
           scaleFactor: 1.0,
           isForBento: false,
+          // 副菜があれば追加
+          ...(sideDish && {
+            sideDish: {
+              recipeId: sideDish.recipe.id,
+              recipe: sideDish.recipe,
+              reason: sideDish.reason,
+            },
+          }),
         };
       }
     });
@@ -733,6 +941,24 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
                         <Clock size={10} color={colors.textMuted} />
                         <Text style={styles.dayRecipeTime}>{recipe.cooking_time_minutes}分</Text>
                       </View>
+                      {/* タイプ別マッチ度表示 */}
+                      {(() => {
+                        const diagAnswers = userPrefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
+                        const psyType = diagAnswers?.psychologyType as FoodPsychologyType | undefined;
+                        if (psyType) {
+                          const matchInfo = getRecipeTypeMatchDescription(recipe, psyType);
+                          if (matchInfo.label) {
+                            return (
+                              <View style={[styles.matchBadge, { backgroundColor: matchInfo.color + '20' }]}>
+                                <Text style={[styles.matchBadgeText, { color: matchInfo.color }]}>
+                                  {matchInfo.emoji} {matchInfo.label}
+                                </Text>
+                              </View>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                     </View>
                     {/* 副菜（表示する場合） */}
                     {includeSideDish && sideDish && (
@@ -1018,6 +1244,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginTop: 2,
     overflow: 'hidden',
+  },
+  matchBadge: {
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  matchBadgeText: {
+    fontSize: 8,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Shared Ingredients（使い回し食材 - 目立つように）

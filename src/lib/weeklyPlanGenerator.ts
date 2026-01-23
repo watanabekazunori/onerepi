@@ -11,6 +11,23 @@ import {
   calculateRecipePreferenceScore,
   LearnedPreferences,
 } from './preferenceLearner';
+import {
+  FoodPsychologyType,
+  FOOD_TYPES,
+  scoreRecipeByType,
+  extractPsychologyTags,
+  RecipeScore,
+} from './preferenceScoring';
+import {
+  classifyRecipe,
+  RecipeTypeClassification,
+  RecipeAudience,
+  getWeeklyMixConfig,
+  determineWeeklySlots,
+  WeeklyMixConfig,
+  UserLearningProfile,
+  getConfidenceLevel,
+} from './userTypeLearning';
 
 // 1日の献立
 export interface DayPlan {
@@ -828,4 +845,369 @@ export const suggestNewRecipesBasedOnTaste = async (
   });
 
   return scoredRecipes.slice(0, count).map(sr => sr.recipe);
+};
+
+// ============================================
+// 心理タイプ別 週間献立生成
+// 共通レシピ + タイプ別レシピのミックス提案
+// ============================================
+
+// レシピ分類キャッシュ
+let recipeClassificationCache: Map<string, RecipeTypeClassification> = new Map();
+
+/**
+ * レシピの分類結果をキャッシュから取得、なければ計算
+ */
+const getRecipeClassification = (recipe: Recipe): RecipeTypeClassification => {
+  if (recipeClassificationCache.has(recipe.id)) {
+    return recipeClassificationCache.get(recipe.id)!;
+  }
+  const classification = classifyRecipe(recipe);
+  recipeClassificationCache.set(recipe.id, classification);
+  return classification;
+};
+
+/**
+ * 全レシピの分類を初期化
+ */
+export const initializeRecipeClassifications = (): void => {
+  recipeClassificationCache.clear();
+  MOCK_RECIPES.forEach(recipe => {
+    const classification = classifyRecipe(recipe);
+    recipeClassificationCache.set(recipe.id, classification);
+  });
+};
+
+/**
+ * 特定タイプのレシピをフィルタリング
+ */
+export const getRecipesByAudience = (
+  audience: RecipeAudience,
+  psychologyType?: FoodPsychologyType
+): Recipe[] => {
+  return MOCK_RECIPES.filter(recipe => {
+    const classification = getRecipeClassification(recipe);
+
+    if (classification.audience !== audience) {
+      return false;
+    }
+
+    // type_specific/type_exclusive の場合、タイプ一致をチェック
+    if (audience !== 'universal' && psychologyType) {
+      return classification.primaryTypes.includes(psychologyType) ||
+             classification.secondaryTypes.includes(psychologyType);
+    }
+
+    return true;
+  });
+};
+
+/**
+ * 心理タイプ別週間献立生成オプション
+ */
+export interface PsychologyBasedPlanOptions extends WeeklyPlanOptions {
+  psychologyType: FoodPsychologyType;
+  confidenceLevel?: number;  // 学習信頼度（0-100）
+  mixConfig?: WeeklyMixConfig;  // カスタムミックス設定
+}
+
+/**
+ * 心理タイプ別のレシピスコアリング（週間献立用）
+ */
+const scoreRecipeForPsychologyType = (
+  recipe: Recipe,
+  options: PsychologyBasedPlanOptions,
+  selectedRecipes: Recipe[],
+  previousRecipe: Recipe | null,
+  slotType: 'universal' | 'type_specific' | 'adventure'
+): number => {
+  // 基本スコア
+  let score = scoreRecipe(recipe, options, selectedRecipes, previousRecipe);
+
+  if (score <= -1000) return score;
+
+  const classification = getRecipeClassification(recipe);
+  const psychologyScore = scoreRecipeByType(recipe, options.psychologyType);
+
+  // === スロットタイプ別の加点 ===
+
+  if (slotType === 'universal') {
+    // 万人向けスロット: universal レシピを優先
+    if (classification.audience === 'universal') {
+      score += 50;
+    } else if (classification.audience === 'type_specific') {
+      score -= 20;
+    } else {
+      score -= 50;  // type_exclusive は避ける
+    }
+  } else if (slotType === 'type_specific') {
+    // タイプ別スロット: そのタイプ向けのレシピを優先
+    if (classification.primaryTypes.includes(options.psychologyType)) {
+      score += 60;
+    } else if (classification.secondaryTypes.includes(options.psychologyType)) {
+      score += 30;
+    }
+
+    // 避けるタイプに入っていたら減点
+    if (classification.avoidTypes.includes(options.psychologyType)) {
+      score -= 80;
+    }
+
+    // 心理スコアも加算
+    score += psychologyScore.totalScore * 0.5;
+  } else if (slotType === 'adventure') {
+    // 冒険スロット: 普段と違うものを提案
+    const typeInfo = FOOD_TYPES[options.psychologyType];
+
+    // 普段選ばないカテゴリにボーナス
+    if (options.psychologyType === 'smart_balancer') {
+      // スマートバランサーには時間がかかるがご褒美系を
+      if (recipe.cooking_time_minutes >= 25) score += 20;
+      if (['asian', 'other'].includes(recipe.category)) score += 30;
+    } else if (options.psychologyType === 'healing_gourmet') {
+      // ヒーリンググルマンには健康系を
+      if (recipe.tags.some(t => t.includes('ヘルシー') || t.includes('野菜'))) {
+        score += 30;
+      }
+      if (recipe.category === 'asian') score += 20;
+    } else if (options.psychologyType === 'stoic_creator') {
+      // ストイッククリエイターには癒し系を
+      if (recipe.tags.some(t => t.includes('ほっこり') || t.includes('がっつり'))) {
+        score += 30;
+      }
+    } else if (options.psychologyType === 'trend_hunter') {
+      // トレンドハンターにはド定番を
+      if (recipe.category === 'japanese' && classification.audience === 'universal') {
+        score += 30;
+      }
+    }
+
+    // 新しさにボーナス（まだ作っていないレシピ）
+    score += 15;
+  }
+
+  return score;
+};
+
+/**
+ * 心理タイプ別 週間献立を生成
+ */
+export const generatePsychologyBasedWeeklyPlan = (
+  options: Partial<PsychologyBasedPlanOptions>
+): GeneratedWeeklyPlan => {
+  const psychologyType = options.psychologyType || 'balanced';
+  const confidenceLevel = options.confidenceLevel ?? 0;
+
+  const opts: PsychologyBasedPlanOptions = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    psychologyType,
+    confidenceLevel,
+  };
+
+  // ミックス設定を取得
+  const mixConfig = opts.mixConfig || getWeeklyMixConfig(psychologyType, confidenceLevel);
+
+  // 7日分のスロットタイプを決定
+  const slotTypes = determineWeeklySlots(mixConfig);
+
+  const selectedRecipes: Recipe[] = [];
+  const plans: DayPlan[] = [];
+
+  // 各曜日について選択
+  opts.daysToGenerate.forEach((day, index) => {
+    const previousRecipe = index > 0 ? selectedRecipes[index - 1] : null;
+    const slotType = slotTypes[index] || 'type_specific';
+
+    // スコア計算
+    const scoredRecipes = MOCK_RECIPES.map(recipe => ({
+      recipe,
+      score: scoreRecipeForPsychologyType(
+        recipe,
+        opts,
+        selectedRecipes,
+        previousRecipe,
+        slotType
+      ),
+    }));
+
+    // スコア順にソート
+    scoredRecipes.sort((a, b) => b.score - a.score);
+
+    // 上位から有効なレシピを選択
+    const validRecipes = scoredRecipes.filter(sr => sr.score > 0);
+
+    if (validRecipes.length > 0) {
+      // 上位8件からランダムに選択
+      const topRecipes = validRecipes.slice(0, Math.min(8, validRecipes.length));
+      const selectedIndex = Math.floor(Math.random() * topRecipes.length);
+      const selected = topRecipes[selectedIndex].recipe;
+
+      selectedRecipes.push(selected);
+      plans.push({
+        dayOfWeek: day,
+        recipe: selected,
+        scaleFactor: opts.servings / selected.servings,
+        isForBento: false,
+      });
+    }
+  });
+
+  // カテゴリバランスを集計
+  const categoryBalance: Record<RecipeCategory, number> = {
+    japanese: 0,
+    western: 0,
+    chinese: 0,
+    asian: 0,
+    other: 0,
+  };
+  selectedRecipes.forEach(r => {
+    categoryBalance[r.category]++;
+  });
+
+  // 合計調理時間
+  const totalCookingTime = selectedRecipes.reduce(
+    (sum, r) => sum + r.cooking_time_minutes,
+    0
+  );
+
+  // 共通食材を検出
+  const sharedIngredients = findSharedIngredients(selectedRecipes);
+
+  // 週の開始日
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const weekStart = monday.toISOString().split('T')[0];
+
+  return {
+    id: `weekly-plan-psych-${Date.now()}`,
+    weekStart,
+    plans,
+    totalCookingTime,
+    categoryBalance,
+    sharedIngredients,
+  };
+};
+
+/**
+ * 心理タイプ別献立のサマリーを生成
+ */
+export const getPsychologyPlanSummary = (
+  plan: GeneratedWeeklyPlan,
+  psychologyType: FoodPsychologyType
+): string => {
+  const typeInfo = FOOD_TYPES[psychologyType];
+  const baseSummary = getWeeklyPlanSummary(plan);
+
+  // 各レシピの分類を集計
+  let universalCount = 0;
+  let typeSpecificCount = 0;
+  let adventureCount = 0;
+
+  plan.plans.forEach(p => {
+    const classification = getRecipeClassification(p.recipe);
+    if (classification.audience === 'universal') {
+      universalCount++;
+    } else if (classification.primaryTypes.includes(psychologyType)) {
+      typeSpecificCount++;
+    } else {
+      adventureCount++;
+    }
+  });
+
+  let summary = `${typeInfo.emoji} ${typeInfo.name}タイプの今週の献立\n`;
+  summary += baseSummary;
+  summary += `\n\n`;
+  summary += `📊 構成: 定番${universalCount}品 / あなた向け${typeSpecificCount}品`;
+  if (adventureCount > 0) {
+    summary += ` / 冒険${adventureCount}品`;
+  }
+
+  return summary;
+};
+
+/**
+ * タイプ別のおすすめ度を表示するヘルパー
+ */
+export const getRecipeTypeMatchDescription = (
+  recipe: Recipe,
+  psychologyType: FoodPsychologyType
+): { label: string; emoji: string; color: string } => {
+  const classification = getRecipeClassification(recipe);
+  const score = scoreRecipeByType(recipe, psychologyType);
+
+  if (classification.audience === 'universal') {
+    return {
+      label: 'みんなの定番',
+      emoji: '👍',
+      color: '#666',
+    };
+  }
+
+  if (classification.primaryTypes.includes(psychologyType)) {
+    return {
+      label: 'あなた向け！',
+      emoji: '⭐',
+      color: FOOD_TYPES[psychologyType].color,
+    };
+  }
+
+  if (classification.secondaryTypes.includes(psychologyType)) {
+    return {
+      label: '相性◎',
+      emoji: '✨',
+      color: '#4CAF50',
+    };
+  }
+
+  if (classification.avoidTypes.includes(psychologyType)) {
+    return {
+      label: '冒険メニュー',
+      emoji: '🌟',
+      color: '#FF9800',
+    };
+  }
+
+  return {
+    label: '',
+    emoji: '',
+    color: 'transparent',
+  };
+};
+
+/**
+ * 分類統計を取得（デバッグ・分析用）
+ */
+export const getRecipeClassificationStats = (): {
+  total: number;
+  byAudience: Record<RecipeAudience, number>;
+  byPrimaryType: Record<FoodPsychologyType, number>;
+} => {
+  const stats = {
+    total: MOCK_RECIPES.length,
+    byAudience: {
+      universal: 0,
+      type_specific: 0,
+      type_exclusive: 0,
+    },
+    byPrimaryType: {
+      smart_balancer: 0,
+      stoic_creator: 0,
+      healing_gourmet: 0,
+      trend_hunter: 0,
+      balanced: 0,
+    },
+  };
+
+  MOCK_RECIPES.forEach(recipe => {
+    const classification = getRecipeClassification(recipe);
+    stats.byAudience[classification.audience]++;
+    classification.primaryTypes.forEach(type => {
+      stats.byPrimaryType[type]++;
+    });
+  });
+
+  return stats;
 };

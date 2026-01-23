@@ -36,6 +36,7 @@ import {
   AIRecipeScreen,
   CookingFeedbackScreen,
   PreferenceDiagnosisScreen,
+  MyTypeScreen,
 } from '../screens';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { colors, spacing, borderRadius } from '../lib/theme';
@@ -233,6 +234,13 @@ export const AppNavigator = () => {
           options={{
             animation: 'slide_from_bottom',
             presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="MyType"
+          component={MyTypeScreen}
+          options={{
+            animation: 'slide_from_right',
           }}
         />
         </Stack.Navigator>

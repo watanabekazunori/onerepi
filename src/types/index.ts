@@ -107,6 +107,12 @@ export interface WeeklyPlan {
   scale_factor: number; // 1.0 = 通常, 2.0 = 倍量(作り置き)
   is_for_bento: boolean; // 弁当用フラグ
   created_at: string;
+  // 副菜（オプション）
+  sideDish?: {
+    recipeId: string;
+    recipe: Recipe;
+    reason: string;
+  };
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner';
@@ -216,7 +222,8 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Inventory: undefined;
   Favorites: undefined;
-  PreferenceDiagnosis: undefined; // 好み診断（より深い質問）
+  PreferenceDiagnosis: { isRetake?: boolean }; // 好み診断（再診断フラグ対応）
+  MyType: undefined; // マイタイプ画面
 };
 
 export type MainTabParamList = {
