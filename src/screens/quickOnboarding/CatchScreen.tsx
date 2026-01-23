@@ -1,6 +1,7 @@
 // ============================================
-// Screen 0: CatchScreen
-// 「今日のごはん、もう決めなくていいよ」
+// STEP 0: CatchScreen (0:00–0:20)
+// ワンメッセージ導入
+// 「3分で、あなたの献立を決めます」
 // ============================================
 
 import React, { useEffect, useRef } from 'react';
@@ -10,7 +11,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,23 +21,29 @@ type Props = {
   navigation: NativeStackNavigationProp<QuickOnboardingStackParamList, 'Catch'>;
 };
 
-const { width: screenWidth } = Dimensions.get('window');
-
 export const CatchScreen: React.FC<Props> = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const buttonFadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // フェードインアニメーション
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+    // テキストのフェードイン → ボタンのフェードイン
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+      ]),
+      Animated.timing(buttonFadeAnim, {
         toValue: 1,
-        duration: 800,
-        useNativeDriver: false,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
+        duration: 400,
         useNativeDriver: false,
       }),
     ]).start();
@@ -51,6 +57,7 @@ export const CatchScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* メインメッセージ - これだけ */}
         <Animated.View
           style={[
             styles.textContainer,
@@ -61,17 +68,18 @@ export const CatchScreen: React.FC<Props> = ({ navigation }) => {
           ]}
         >
           <Text style={styles.mainText}>
-            今日のごはん、{'\n'}もう決めなくていいよ
+            3分で、{'\n'}あなたの献立を決めます
           </Text>
         </Animated.View>
 
-        <Animated.View style={[styles.buttonContainer, { opacity: fadeAnim }]}>
+        {/* ボタン - 「はじめる」のみ */}
+        <Animated.View style={[styles.buttonContainer, { opacity: buttonFadeAnim }]}>
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handlePress}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>決めてほしい</Text>
+            <Text style={styles.primaryButtonText}>はじめる</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -92,29 +100,30 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 80,
   },
   mainText: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     color: '#1F2937',
     textAlign: 'center',
-    lineHeight: 42,
+    lineHeight: 48,
+    letterSpacing: -0.5,
   },
   buttonContainer: {
     width: '100%',
-    maxWidth: 300,
+    maxWidth: 280,
   },
   primaryButton: {
-    backgroundColor: '#FF8C00',
+    backgroundColor: '#FF6B35',
     paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    shadowColor: '#FF8C00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingHorizontal: 48,
+    borderRadius: 30,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   primaryButtonText: {
     color: '#FFFFFF',

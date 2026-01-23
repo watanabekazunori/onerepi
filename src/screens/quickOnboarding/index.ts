@@ -11,5 +11,4 @@ export { Question1Screen } from './Question1Screen';
 export { Question2Screen } from './Question2Screen';
 export { ThinkingScreen } from './ThinkingScreen';
 export { TodayMealScreen } from './TodayMealScreen';
-export { WeekPreviewScreen } from './WeekPreviewScreen';
 export { CompleteScreen } from './CompleteScreen';

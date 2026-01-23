@@ -1,6 +1,7 @@
 // ============================================
-// Screen 2: Question2Screen
-// 「見たことない調味料があったら？」
+// STEP 1 Q2: Question2Screen (0:50–1:20)
+// 超軽量・心理タイプ診断（2問中2問目）
+// 「知らない料理を見つけたら？」
 // ============================================
 
 import React, { useEffect, useRef } from 'react';
@@ -24,18 +25,26 @@ type Props = {
 
 export const Question2Screen: React.FC<Props> = ({ navigation, onAnswer }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+  const optionAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: false,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: false,
+        }),
+      ]),
+      Animated.timing(optionAnim, {
         toValue: 1,
-        duration: 500,
-        useNativeDriver: false,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
+        duration: 300,
         useNativeDriver: false,
       }),
     ]).start();
@@ -50,6 +59,7 @@ export const Question2Screen: React.FC<Props> = ({ navigation, onAnswer }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* 質問カード */}
         <Animated.View
           style={[
             styles.questionContainer,
@@ -60,28 +70,27 @@ export const Question2Screen: React.FC<Props> = ({ navigation, onAnswer }) => {
           ]}
         >
           <Text style={styles.questionText}>
-            見たことない調味料があったら？
+            知らない料理を見つけたら？
           </Text>
+        </Animated.View>
 
-          <View style={styles.optionsContainer}>
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={() => handleSelect('A')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.optionEmoji}>😌</Text>
-              <Text style={styles.optionText}>今回はスルー</Text>
-            </TouchableOpacity>
+        {/* 選択肢 */}
+        <Animated.View style={[styles.optionsContainer, { opacity: optionAnim }]}>
+          <TouchableOpacity
+            style={styles.optionButton}
+            onPress={() => handleSelect('A')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.optionText}>定番が安心</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={() => handleSelect('B')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.optionEmoji}>👀</Text>
-              <Text style={styles.optionText}>ちょっと気になる</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.optionButton}
+            onPress={() => handleSelect('B')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.optionText}>ちょっと試したい</Text>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* 進捗インジケーター */}
@@ -106,40 +115,39 @@ const styles = StyleSheet.create({
   },
   questionContainer: {
     alignItems: 'center',
+    marginBottom: 48,
   },
   questionText: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '700',
     color: '#1F2937',
     textAlign: 'center',
-    marginBottom: 32,
+    lineHeight: 38,
   },
   optionsContainer: {
     width: '100%',
     maxWidth: 340,
+    alignSelf: 'center',
     gap: 16,
   },
   optionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 20,
+    paddingVertical: 22,
     paddingHorizontal: 24,
     borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#F3F4F6',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
-    gap: 16,
-  },
-  optionEmoji: {
-    fontSize: 28,
   },
   optionText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#1F2937',
   },
   progressContainer: {
@@ -155,7 +163,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   progressDotActive: {
-    backgroundColor: '#FF8C00',
+    backgroundColor: '#FF6B35',
     width: 24,
   },
   progressDotComplete: {

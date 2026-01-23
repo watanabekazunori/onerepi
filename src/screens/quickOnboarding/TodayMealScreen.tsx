@@ -1,6 +1,7 @@
 // ============================================
-// Screen 4: TodayMealScreen
-// 今日の献立表示
+// STEP 3: TodayMealScreen (2:20–2:50)
+// 部分的な成功体験（重要）
+// 今日・明日・明後日の3日分だけ表示
 // ============================================
 
 import React, { useEffect, useRef } from 'react';
@@ -10,29 +11,40 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Check } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { QuickOnboardingStackParamList } from './QuickOnboardingNavigator';
-import { TodayMealResult } from '../../lib/quickOnboarding';
+import { ThreeDayMealResult } from '../../lib/quickOnboarding';
 
 type Props = {
   navigation: NativeStackNavigationProp<QuickOnboardingStackParamList, 'TodayMeal'>;
-  todayMeal: TodayMealResult;
+  threeDayMeals: ThreeDayMealResult;
   reason: string;
 };
 
-export const TodayMealScreen: React.FC<Props> = ({ navigation, todayMeal, reason }) => {
+// 曜日ラベル生成
+const getDayLabel = (offset: number): string => {
+  if (offset === 0) return '今日';
+  if (offset === 1) return '明日';
+  if (offset === 2) return '明後日';
+  return '';
+};
+
+export const TodayMealScreen: React.FC<Props> = ({ navigation, threeDayMeals, reason }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const cardAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const card1Anim = useRef(new Animated.Value(0)).current;
+  const card2Anim = useRef(new Animated.Value(0)).current;
+  const card3Anim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 順次アニメーション
+    // 順次アニメーション: タイトル → カード1 → カード2 → カード3 → ボタン
     Animated.sequence([
-      // 理由テキストのフェードイン
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -45,13 +57,21 @@ export const TodayMealScreen: React.FC<Props> = ({ navigation, todayMeal, reason
           useNativeDriver: false,
         }),
       ]),
-      // 献立カードのフェードイン
-      Animated.timing(cardAnim, {
+      Animated.timing(card1Anim, {
         toValue: 1,
-        duration: 500,
+        duration: 300,
         useNativeDriver: false,
       }),
-      // ボタンのフェードイン
+      Animated.timing(card2Anim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: false,
+      }),
+      Animated.timing(card3Anim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: false,
+      }),
       Animated.timing(buttonAnim, {
         toValue: 1,
         duration: 300,
@@ -61,57 +81,70 @@ export const TodayMealScreen: React.FC<Props> = ({ navigation, todayMeal, reason
   }, []);
 
   const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('WeekPreview');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate('Complete');
   };
+
+  const cardAnims = [card1Anim, card2Anim, card3Anim];
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* 理由テキスト */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ヘッダー */}
         <Animated.View
           style={[
-            styles.reasonContainer,
+            styles.headerContainer,
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          <Text style={styles.reasonText}>{reason}</Text>
-          <Text style={styles.soText}>だから...</Text>
+          <Text style={styles.headerText}>
+            あなたの好みに合わせて{'\n'}3日分、考えました
+          </Text>
         </Animated.View>
 
-        {/* 献立カード */}
-        <Animated.View style={[styles.mealCard, { opacity: cardAnim }]}>
-          <Text style={styles.todayLabel}>今日はこれ！</Text>
+        {/* 3日分の献立カード */}
+        <View style={styles.cardsContainer}>
+          {threeDayMeals.days.map((day, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.mealCard,
+                { opacity: cardAnims[index] },
+              ]}
+            >
+              {/* 日付ラベル */}
+              <View style={styles.dayLabelContainer}>
+                <Text style={styles.dayLabel}>{getDayLabel(index)}</Text>
+              </View>
 
-          {/* メイン料理 */}
-          <View style={styles.dishContainer}>
-            <Text style={styles.dishEmoji}>{todayMeal.mainDish.emoji}</Text>
-            <View style={styles.dishInfo}>
-              <Text style={styles.dishName}>{todayMeal.mainDish.name}</Text>
-              <View style={styles.tagContainer}>
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>🍳 ワンパン</Text>
-                </View>
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>⏱ {todayMeal.mainDish.cookTime}</Text>
+              {/* メイン料理 */}
+              <View style={styles.dishRow}>
+                <Text style={styles.dishEmoji}>{day.emoji}</Text>
+                <View style={styles.dishInfo}>
+                  <Text style={styles.dishName}>{day.name}</Text>
+                  <Text style={styles.dishTime}>{day.cookTime}</Text>
                 </View>
               </View>
-            </View>
-          </View>
 
-          {/* サイドメニュー */}
-          {todayMeal.sideDish && (
-            <View style={styles.sideContainer}>
-              <Text style={styles.sideLabel}>＋おまけ</Text>
-              <Text style={styles.sideName}>
-                {todayMeal.sideDish.emoji} {todayMeal.sideDish.name}
-              </Text>
-            </View>
-          )}
-        </Animated.View>
+              {/* マッチ理由チェックリスト */}
+              <View style={styles.matchReasons}>
+                {day.matchReasons.map((reasonText, reasonIndex) => (
+                  <View key={reasonIndex} style={styles.matchReasonItem}>
+                    <Check size={14} color="#10B981" strokeWidth={3} />
+                    <Text style={styles.matchReasonText}>{reasonText}</Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          ))}
+        </View>
 
         {/* 次へボタン */}
         <Animated.View style={[styles.buttonContainer, { opacity: buttonAnim }]}>
@@ -120,10 +153,10 @@ export const TodayMealScreen: React.FC<Props> = ({ navigation, todayMeal, reason
             onPress={handleNext}
             activeOpacity={0.8}
           >
-            <Text style={styles.nextButtonText}>来週の雰囲気も見る</Text>
+            <Text style={styles.nextButtonText}>いい感じ！</Text>
           </TouchableOpacity>
         </Animated.View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -133,110 +166,109 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFF8F0',
   },
-  content: {
+  scrollView: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
   },
-  reasonContainer: {
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 40,
+  },
+  headerContainer: {
     marginBottom: 24,
+    alignItems: 'center',
   },
-  reasonText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#6B7280',
+  headerText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
     textAlign: 'center',
-    lineHeight: 28,
+    lineHeight: 32,
   },
-  soText: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    marginTop: 8,
+  cardsContainer: {
+    gap: 16,
   },
   mealCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  todayLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF8C00',
-    textAlign: 'center',
-    marginBottom: 16,
+  dayLabelContainer: {
+    marginBottom: 12,
   },
-  dishContainer: {
+  dayLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF6B35',
+    textTransform: 'uppercase',
+  },
+  dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   dishEmoji: {
-    fontSize: 56,
+    fontSize: 44,
   },
   dishInfo: {
     flex: 1,
   },
   dishName: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 8,
-  },
-  tagContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tag: {
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#F57C00',
-  },
-  sideContainer: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  sideLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
     marginBottom: 4,
   },
-  sideName: {
-    fontSize: 16,
+  dishTime: {
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  matchReasons: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  matchReasonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  matchReasonText: {
+    fontSize: 12,
     fontWeight: '500',
-    color: '#4B5563',
+    color: '#059669',
   },
   buttonContainer: {
-    marginTop: 32,
+    marginTop: 28,
     alignItems: 'center',
   },
   nextButton: {
-    backgroundColor: '#FF8C00',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 18,
+    paddingHorizontal: 48,
     borderRadius: 30,
-    shadowColor: '#FF8C00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   nextButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

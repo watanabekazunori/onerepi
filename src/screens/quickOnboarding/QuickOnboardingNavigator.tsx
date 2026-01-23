@@ -1,6 +1,9 @@
 // ============================================
 // QuickOnboardingNavigator
 // 初回3分体験のナビゲーションコンテナ
+//
+// フロー:
+// Catch → Q1 → Q2 → Thinking → TodayMeal(3日分) → Complete
 // ============================================
 
 import React, { useState, useCallback } from 'react';
@@ -10,18 +13,16 @@ import { Question1Screen } from './Question1Screen';
 import { Question2Screen } from './Question2Screen';
 import { ThinkingScreen } from './ThinkingScreen';
 import { TodayMealScreen } from './TodayMealScreen';
-import { WeekPreviewScreen } from './WeekPreviewScreen';
 import { CompleteScreen } from './CompleteScreen';
 import {
   QuickAnswer,
   QuickOnboardingAnswers,
-  TodayMealResult,
-  WeekVibesResult,
+  ThreeDayMealResult,
   inferQuickType,
   generateQuickReason,
-  generateTodayMeal,
-  generateWeekVibes,
-  saveQuickOnboardingResult,
+  generateThreeDayMeals,
+  saveQuickOnboardingResultV2,
+  INITIAL_UNDERSTANDING,
 } from '../../lib/quickOnboarding';
 
 export type QuickOnboardingStackParamList = {
@@ -30,7 +31,6 @@ export type QuickOnboardingStackParamList = {
   Question2: undefined;
   Thinking: undefined;
   TodayMeal: undefined;
-  WeekPreview: undefined;
   Complete: undefined;
 };
 
@@ -49,8 +49,7 @@ export const QuickOnboardingNavigator: React.FC<Props> = ({ onComplete }) => {
 
   // 生成された結果
   const [reason, setReason] = useState<string>('');
-  const [todayMeal, setTodayMeal] = useState<TodayMealResult | null>(null);
-  const [weekVibes, setWeekVibes] = useState<WeekVibesResult | null>(null);
+  const [threeDayMeals, setThreeDayMeals] = useState<ThreeDayMealResult | null>(null);
 
   // Q1回答ハンドラ
   const handleQ1Answer = useCallback((answer: QuickAnswer) => {
@@ -66,12 +65,10 @@ export const QuickOnboardingNavigator: React.FC<Props> = ({ onComplete }) => {
       // 結果を生成
       const inferredType = inferQuickType(newAnswers);
       const generatedReason = generateQuickReason(newAnswers);
-      const generatedMeal = generateTodayMeal(inferredType, newAnswers);
-      const generatedVibes = generateWeekVibes(inferredType);
+      const generatedMeals = generateThreeDayMeals(inferredType, newAnswers);
 
       setReason(generatedReason);
-      setTodayMeal(generatedMeal);
-      setWeekVibes(generatedVibes);
+      setThreeDayMeals(generatedMeals);
     },
     [answers]
   );
@@ -80,18 +77,17 @@ export const QuickOnboardingNavigator: React.FC<Props> = ({ onComplete }) => {
   const handleComplete = useCallback(async () => {
     // 結果を保存
     const inferredType = inferQuickType(answers);
-    await saveQuickOnboardingResult({
+    await saveQuickOnboardingResultV2({
       answers,
       inferredType,
       reason,
-      todayMeal: todayMeal!,
-      weekVibes: weekVibes!,
+      threeDayMeals: threeDayMeals!,
       completedAt: new Date().toISOString(),
     });
 
     // メイン画面へ
     onComplete();
-  }, [answers, reason, todayMeal, weekVibes, onComplete]);
+  }, [answers, reason, threeDayMeals, onComplete]);
 
   return (
     <Stack.Navigator
@@ -121,23 +117,20 @@ export const QuickOnboardingNavigator: React.FC<Props> = ({ onComplete }) => {
         {(props) => (
           <TodayMealScreen
             {...props}
-            todayMeal={todayMeal || generateTodayMeal('balanced', answers)}
-            reason={reason || '今日は手軽に美味しく'}
-          />
-        )}
-      </Stack.Screen>
-
-      <Stack.Screen name="WeekPreview">
-        {(props) => (
-          <WeekPreviewScreen
-            {...props}
-            weekVibes={weekVibes || generateWeekVibes('balanced')}
+            threeDayMeals={threeDayMeals || generateThreeDayMeals('balanced', answers)}
+            reason={reason || 'あなたに合わせて選びました'}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="Complete">
-        {() => <CompleteScreen onComplete={handleComplete} />}
+        {() => (
+          <CompleteScreen
+            onComplete={handleComplete}
+            initialUnderstanding={INITIAL_UNDERSTANDING.START}
+            finalUnderstanding={INITIAL_UNDERSTANDING.END}
+          />
+        )}
       </Stack.Screen>
     </Stack.Navigator>
   );

@@ -1,9 +1,15 @@
 // ============================================
-// Screen 6: CompleteScreen
-// 完了画面 + 保存
+// STEP 4-5: CompleteScreen (2:50–3:10+)
+// 理解度％を"初めて見せる" + CTA
+//
+// 表示:
+// 理解度 48% → 70%
+// 「ここまで、だいたい分かりました」
+//
+// CTA: 「この献立で1週間いく」
 // ============================================
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,14 +22,21 @@ import * as Haptics from 'expo-haptics';
 
 type Props = {
   onComplete: () => void;
+  initialUnderstanding?: number; // 初期表示値（デフォルト48）
+  finalUnderstanding?: number;   // 最終表示値（デフォルト70）
 };
 
-export const CompleteScreen: React.FC<Props> = ({ onComplete }) => {
+export const CompleteScreen: React.FC<Props> = ({
+  onComplete,
+  initialUnderstanding = 48,
+  finalUnderstanding = 70,
+}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const checkAnim = useRef(new Animated.Value(0)).current;
-  const textAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(initialUnderstanding / 100)).current;
+  const messageAnim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
+
+  const [displayPercentage, setDisplayPercentage] = useState(initialUnderstanding);
 
   useEffect(() => {
     // 完了のハプティクスフィードバック
@@ -31,39 +44,55 @@ export const CompleteScreen: React.FC<Props> = ({ onComplete }) => {
 
     // 順次アニメーション
     Animated.sequence([
-      // チェックマークのスケールイン
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: false,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 4,
-          tension: 100,
-          useNativeDriver: false,
-        }),
-      ]),
-      // チェックマークの描画アニメーション
-      Animated.timing(checkAnim, {
+      // 1. 理解度ラベルとプログレスバーのフェードイン
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: false,
+      }),
+      // 2. プログレスバーが48%→70%にアニメーション
+      Animated.timing(progressAnim, {
+        toValue: finalUnderstanding / 100,
+        duration: 1200,
+        useNativeDriver: false,
+      }),
+      // 3. メッセージのフェードイン
+      Animated.timing(messageAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: false,
       }),
-      // テキストのフェードイン
-      Animated.timing(textAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: false,
-      }),
-      // ボタンのフェードイン
+      // 4. ボタンのフェードイン
       Animated.timing(buttonAnim, {
         toValue: 1,
         duration: 300,
         useNativeDriver: false,
       }),
     ]).start();
+
+    // プログレスバーのアニメーションに合わせて数値を更新
+    const startTime = Date.now();
+    const duration = 1700; // フェードイン500 + プログレス1200
+    const updateInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 500) {
+        // 最初の500msはフェードイン中
+        return;
+      }
+      const progressElapsed = elapsed - 500;
+      const progressRatio = Math.min(progressElapsed / 1200, 1);
+      const currentValue = Math.round(
+        initialUnderstanding + (finalUnderstanding - initialUnderstanding) * progressRatio
+      );
+      setDisplayPercentage(currentValue);
+      if (progressRatio >= 1) {
+        clearInterval(updateInterval);
+      }
+    }, 30);
+
+    return () => {
+      clearInterval(updateInterval);
+    };
   }, []);
 
   const handleStart = () => {
@@ -74,55 +103,56 @@ export const CompleteScreen: React.FC<Props> = ({ onComplete }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* 完了アイコン */}
-        <Animated.View
-          style={[
-            styles.checkContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          <View style={styles.checkCircle}>
-            <Text style={styles.checkEmoji}>🎉</Text>
+        {/* 理解度セクション */}
+        <Animated.View style={[styles.understandingSection, { opacity: fadeAnim }]}>
+          <Text style={styles.understandingLabel}>理解度</Text>
+
+          {/* 数値 */}
+          <View style={styles.percentageContainer}>
+            <Text style={styles.percentageValue}>{displayPercentage}</Text>
+            <Text style={styles.percentageSymbol}>%</Text>
+          </View>
+
+          {/* プログレスバー */}
+          <View style={styles.progressBarContainer}>
+            <Animated.View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                },
+              ]}
+            />
+          </View>
+
+          {/* 上限マーカー */}
+          <View style={styles.capMarkerContainer}>
+            <View style={[styles.capMarker, { left: '70%' }]} />
+            <Text style={styles.capMarkerLabel}>Free上限</Text>
           </View>
         </Animated.View>
 
         {/* メッセージ */}
-        <Animated.View style={[styles.messageContainer, { opacity: textAnim }]}>
-          <Text style={styles.mainText}>準備完了！</Text>
-          <Text style={styles.subText}>
-            あなたの好みを覚えたよ{'\n'}
-            明日からも「何作ろう」って{'\n'}
-            聞いてくれたら考えるね
+        <Animated.View style={[styles.messageContainer, { opacity: messageAnim }]}>
+          <Text style={styles.mainMessage}>
+            ここまで、だいたい分かりました
+          </Text>
+          <Text style={styles.subMessage}>
+            使うほど、あなたに近づきます
           </Text>
         </Animated.View>
 
-        {/* 特徴リスト */}
-        <Animated.View style={[styles.featureContainer, { opacity: textAnim }]}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureEmoji}>🍳</Text>
-            <Text style={styles.featureText}>全部ワンパンで作れる</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureEmoji}>📅</Text>
-            <Text style={styles.featureText}>1週間まとめて考える</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureEmoji}>🛒</Text>
-            <Text style={styles.featureText}>買い物リストも自動で作る</Text>
-          </View>
-        </Animated.View>
-
-        {/* スタートボタン */}
+        {/* CTAボタン */}
         <Animated.View style={[styles.buttonContainer, { opacity: buttonAnim }]}>
           <TouchableOpacity
-            style={styles.startButton}
+            style={styles.primaryButton}
             onPress={handleStart}
             activeOpacity={0.8}
           >
-            <Text style={styles.startButtonText}>使ってみる</Text>
+            <Text style={styles.primaryButtonText}>この献立で1週間いく</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -139,83 +169,109 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
   },
-  checkContainer: {
-    marginBottom: 32,
-  },
-  checkCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFF3E0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkEmoji: {
-    fontSize: 48,
-  },
-  messageContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  mainText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  subText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 26,
-  },
-  featureContainer: {
+
+  // 理解度セクション
+  understandingSection: {
     width: '100%',
-    maxWidth: 300,
-    gap: 12,
+    maxWidth: 320,
+    alignItems: 'center',
     marginBottom: 40,
   },
-  featureItem: {
+  understandingLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  percentageContainer: {
     flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 20,
+  },
+  percentageValue: {
+    fontSize: 72,
+    fontWeight: '700',
+    color: '#FF6B35',
+    letterSpacing: -2,
+  },
+  percentageSymbol: {
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#FF6B35',
+    marginLeft: 4,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FF6B35',
+    borderRadius: 6,
+  },
+  capMarkerContainer: {
+    width: '100%',
+    position: 'relative',
+    marginTop: 8,
+  },
+  capMarker: {
+    position: 'absolute',
+    top: -20,
+    width: 2,
+    height: 8,
+    backgroundColor: '#9CA3AF',
+    transform: [{ translateX: -1 }],
+  },
+  capMarkerLabel: {
+    position: 'absolute',
+    top: -8,
+    right: 0,
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+
+  // メッセージ
+  messageContainer: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    marginBottom: 48,
   },
-  featureEmoji: {
+  mainMessage: {
     fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  featureText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#4B5563',
+  subMessage: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
   },
+
+  // ボタン
   buttonContainer: {
     width: '100%',
-    maxWidth: 300,
+    maxWidth: 320,
   },
-  startButton: {
-    backgroundColor: '#FF8C00',
+  primaryButton: {
+    backgroundColor: '#FF6B35',
     paddingVertical: 18,
     borderRadius: 30,
     alignItems: 'center',
-    shadowColor: '#FF8C00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  startButtonText: {
-    fontSize: 18,
+  primaryButtonText: {
+    fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
   },
