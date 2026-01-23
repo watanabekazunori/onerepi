@@ -40,6 +40,7 @@ export interface Recipe {
   image_url?: string;
   servings: number; // 基本の人数分
   is_bento_friendly: boolean; // 弁当向きかどうか
+  pans_required?: number; // 必要なフライパン数（1 = ワンパン、2以上 = 複数調理器具）
   nutrition?: NutritionInfo; // 栄養情報（1人分）
   created_at: string;
 }
@@ -113,6 +114,9 @@ export interface WeeklyPlan {
     recipe: Recipe;
     reason: string;
   };
+  // レシピ選択理由（納得感の可視化）
+  reason?: string; // 例: "スマート・バランサーのあなた向け＋キャベツ消費"
+  slotType?: 'universal' | 'type_specific' | 'adventure'; // スロットタイプ
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner';

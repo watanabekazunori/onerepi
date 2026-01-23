@@ -26,6 +26,8 @@ import {
   Play,
   Calendar,
   Utensils,
+  Info,
+  X,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList, WeeklyPlan, WeekDay, DayOfWeek, Recipe } from '../types';
@@ -210,6 +212,27 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
   const handlePlanPress = (plan: WeeklyPlan) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Cooking', { planId: plan.id });
+  };
+
+  // 「今日は作らなかった」ボタンのハンドラ
+  const handleSkipDay = async (plan: WeeklyPlan) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // TODO: 学習イベントとして記録し、ストレージを更新
+    // 現在は簡易的にアラートを表示
+    const recipeName = plan.recipe?.name || 'この献立';
+
+    // 学習として記録（将来的にUserLearningProfileに反映）
+    console.log('[Learning] User skipped:', {
+      recipeId: plan.recipe_id,
+      recipeName,
+      date: plan.date,
+      action: 'skipped',
+    });
+
+    // UIフィードバック（将来的にはステータス更新）
+    // 今は簡易的な確認表示のみ
+    alert(`「${recipeName}」をスキップしました。また次の機会にどうぞ！`);
   };
 
   const handleRecipeDetail = (recipeId: string) => {
@@ -463,7 +486,23 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
                     </View>
                     <View style={styles.mealInfo}>
                       <Text style={styles.mealName}>{plan.recipe?.name}</Text>
+                      {/* レシピ選択理由（納得感の可視化） */}
+                      {plan.reason && (
+                        <View style={styles.reasonContainer}>
+                          <Info size={12} color={brandColors.primary} />
+                          <Text style={styles.reasonText}>{plan.reason}</Text>
+                        </View>
+                      )}
                       <View style={styles.mealMeta}>
+                        {/* ワンパン/フライパン数表示 */}
+                        <View style={[
+                          styles.panBadge,
+                          (plan.recipe?.pans_required || 1) === 1 && styles.panBadgeOnePan
+                        ]}>
+                          <Text style={styles.panBadgeText}>
+                            {(plan.recipe?.pans_required || 1) === 1 ? '🥘 ワンパン' : `🍳 ${plan.recipe?.pans_required}フライパン`}
+                          </Text>
+                        </View>
                         <Clock size={14} color={brandColors.textMuted} />
                         <Text style={styles.mealTime}>
                           {plan.recipe?.cooking_time_minutes}分
@@ -526,6 +565,13 @@ export const WeeklyPlanScreen: React.FC<WeeklyPlanScreenProps> = ({ navigation }
                         </Text>
                       </TouchableOpacity>
                     )}
+                    <TouchableOpacity
+                      style={styles.skipDayButton}
+                      onPress={() => handleSkipDay(plan)}
+                    >
+                      <X size={14} color={brandColors.textMuted} />
+                      <Text style={styles.skipDayButtonText}>作らなかった</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.cookNowButtonSmall}
                       onPress={() => handlePlanPress(plan)}
@@ -1259,5 +1305,61 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: brandColors.primary,
+  },
+
+  // レシピ選択理由のスタイル（納得感の可視化）
+  reasonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.primarySoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 4,
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  reasonText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: brandColors.primary,
+  },
+
+  // 「今日は作らなかった」ボタンのスタイル
+  skipDayButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 6,
+    borderRightWidth: 1,
+    borderRightColor: brandColors.border,
+    backgroundColor: brandColors.surfaceAlt,
+  },
+  skipDayButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brandColors.textMuted,
+  },
+
+  // ワンパン/フライパン数バッジのスタイル
+  panBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brandColors.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  panBadgeOnePan: {
+    backgroundColor: '#E8F5E9', // 緑系でワンパンを目立たせる
+  },
+  panBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: brandColors.textSecondary,
   },
 });

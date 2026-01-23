@@ -1179,6 +1179,7 @@ export const generateRecipes = (count: number): Recipe[] => {
       category,
       servings: 1 + Math.floor(Math.random() * 2),
       is_bento_friendly: Math.random() > 0.4,
+      pans_required: 1, // ワンパン・バディのコンセプト：全てフライパン1つで完結
       ingredients: generateIngredients(protein, vegetables),
       steps: generateSteps(pattern, protein.name, vegetables.map(v => v.name), seasoningNames),
       tags: [...new Set(tags)], // 重複を削除

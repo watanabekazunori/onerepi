@@ -47,7 +47,11 @@ import {
   getPsychologyPlanSummary,
   getRecipeTypeMatchDescription,
   initializeRecipeClassifications,
+  generateRecipeReason,
 } from '../lib/weeklyPlanGenerator';
+import {
+  classifyRecipe,
+} from '../lib/userTypeLearning';
 import {
   getWeeklyMixConfig,
   getConfidenceLevel,
@@ -698,6 +702,10 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
   const saveWeeklyPlanToStorage = async () => {
     const weekStart = route.params?.weekStart || getThisWeekMonday();
 
+    // ユーザーの心理タイプを取得
+    const diagnosisAnswers = userPrefs?.diagnosisAnswers as DiagnosisAnswers | undefined;
+    const psychologyType = (diagnosisAnswers?.psychologyType as FoodPsychologyType) || 'balanced';
+
     const storedPlan: StoredWeeklyPlan = {
       id: `plan-${Date.now()}`,
       weekStart,
@@ -707,16 +715,39 @@ export const DraftMeetingScreen: React.FC<DraftMeetingScreenProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    // 各曜日のレシピを格納（副菜も含む）
-    DAYS_ORDER.forEach((day) => {
+    // 各曜日のレシピを格納（副菜も含む）+ 選択理由を生成
+    DAYS_ORDER.forEach((day, index) => {
       const recipe = weeklyPlan[day];
       const sideDish = sideDishPlan[day];
       if (recipe) {
+        // レシピの分類からスロットタイプを推測
+        const classification = classifyRecipe(recipe);
+        let slotType: 'universal' | 'type_specific' | 'adventure' = 'type_specific';
+
+        if (classification.audience === 'universal') {
+          slotType = 'universal';
+        } else if (classification.avoidTypes.includes(psychologyType)) {
+          slotType = 'adventure';
+        } else if (classification.primaryTypes.includes(psychologyType)) {
+          slotType = 'type_specific';
+        }
+
+        // 選択理由を生成
+        const reason = generateRecipeReason(
+          recipe,
+          psychologyType,
+          slotType,
+          sharedIngredients,
+          index
+        );
+
         storedPlan.plans[day] = {
           recipeId: recipe.id,
           recipe,
           scaleFactor: 1.0,
           isForBento: false,
+          reason, // 選択理由を追加
+          slotType, // スロットタイプを追加
           // 副菜があれば追加
           ...(sideDish && {
             sideDish: {

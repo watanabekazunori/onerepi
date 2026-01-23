@@ -29,6 +29,9 @@ export interface StoredWeeklyPlan {
       recipe: Recipe;
       scaleFactor: number;
       isForBento: boolean;
+      // レシピ選択理由（納得感の可視化）
+      reason?: string; // 例: "スマート・バランサーのあなた向け＋キャベツ消費"
+      slotType?: 'universal' | 'type_specific' | 'adventure'; // スロットタイプ
       // 副菜（オプション）
       sideDish?: {
         recipeId: string;
@@ -165,6 +168,9 @@ export const convertToWeeklyPlans = (stored: StoredWeeklyPlan): WeeklyPlan[] => 
         created_at: stored.createdAt,
         // 副菜も含める
         sideDish: planForDay.sideDish,
+        // 選択理由（納得感の可視化）
+        reason: planForDay.reason,
+        slotType: planForDay.slotType,
       });
     }
   });

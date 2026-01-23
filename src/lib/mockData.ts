@@ -25,6 +25,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'asian',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鶏ひき肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: 'バジル', amount: 10, unit: '枚', category: 'vegetable', is_optional: false },
@@ -132,6 +133,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鶏ひき肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: '卵', amount: 2, unit: '個', category: 'protein', is_optional: false },
@@ -223,6 +225,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鶏もも肉', amount: 200, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: '醤油', amount: 2, unit: '大さじ', category: 'seasoning', is_optional: false },
@@ -314,6 +317,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鶏もも肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: '卵', amount: 2, unit: '個', category: 'protein', is_optional: false },
@@ -407,6 +411,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'asian',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '豚バラ肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: 'キムチ', amount: 100, unit: 'g', category: 'vegetable', is_optional: false },
@@ -497,6 +502,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '豚ロース', amount: 200, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: '生姜', amount: 1, unit: '片', category: 'vegetable', is_optional: false },
@@ -589,6 +595,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '豚バラ肉', amount: 200, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: 'キャベツ', amount: 4, unit: '枚', category: 'vegetable', is_optional: false },
@@ -684,6 +691,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '豚バラ肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: 'もやし', amount: 200, unit: 'g', category: 'vegetable', is_optional: false },
@@ -776,6 +784,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'western',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '卵', amount: 3, unit: '個', category: 'protein', is_optional: false },
       { id: 'i2', name: 'ご飯', amount: 1, unit: '膳', category: 'grain', is_optional: false },
@@ -870,6 +879,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '卵', amount: 3, unit: '個', category: 'protein', is_optional: false },
       { id: 'i2', name: 'ニラ', amount: 1, unit: '束', category: 'vegetable', is_optional: false },
@@ -960,6 +970,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '卵', amount: 3, unit: '個', category: 'protein', is_optional: false },
       { id: 'i2', name: 'トマト', amount: 2, unit: '個', category: 'vegetable', is_optional: false },
@@ -1052,6 +1063,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 2,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '豆腐', amount: 1, unit: '丁', category: 'protein', is_optional: false },
       { id: 'i2', name: '豚ひき肉', amount: 100, unit: 'g', category: 'protein', is_optional: false },
@@ -1147,6 +1159,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '木綿豆腐', amount: 1, unit: '丁', category: 'protein', is_optional: false },
       { id: 'i2', name: '卵', amount: 2, unit: '個', category: 'protein', is_optional: false },
@@ -1245,6 +1258,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '木綿豆腐', amount: 1, unit: '丁', category: 'protein', is_optional: false },
       { id: 'i2', name: '牛薄切り肉', amount: 150, unit: 'g', category: 'protein', is_optional: false },
@@ -1339,6 +1353,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鮭', amount: 1, unit: '切れ', category: 'protein', is_optional: false },
       { id: 'i2', name: 'キャベツ', amount: 2, unit: '枚', category: 'vegetable', is_optional: false },
@@ -1431,6 +1446,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'western',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鮭', amount: 1, unit: '切れ', category: 'protein', is_optional: false },
       { id: 'i2', name: '小麦粉', amount: 1, unit: '大さじ', category: 'grain', is_optional: false },
@@ -1522,6 +1538,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'サバ', amount: 2, unit: '切れ', category: 'protein', is_optional: false },
       { id: 'i2', name: '味噌', amount: 2, unit: '大さじ', category: 'seasoning', is_optional: false },
@@ -1602,6 +1619,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'western',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'パスタ', amount: 100, unit: 'g', category: 'grain', is_optional: false },
       { id: 'i2', name: 'にんにく', amount: 2, unit: '片', category: 'vegetable', is_optional: false },
@@ -1696,6 +1714,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'western',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'パスタ', amount: 100, unit: 'g', category: 'grain', is_optional: false },
       { id: 'i2', name: 'ウインナー', amount: 3, unit: '本', category: 'protein', is_optional: false },
@@ -1788,6 +1807,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'パスタ', amount: 100, unit: 'g', category: 'grain', is_optional: false },
       { id: 'i2', name: 'ツナ缶', amount: 1, unit: '缶', category: 'protein', is_optional: false },
@@ -1883,6 +1903,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'キャベツ', amount: 3, unit: '枚', category: 'vegetable', is_optional: false },
       { id: 'i2', name: 'もやし', amount: 100, unit: 'g', category: 'vegetable', is_optional: false },
@@ -1977,6 +1998,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'なす', amount: 3, unit: '本', category: 'vegetable', is_optional: false },
       { id: 'i2', name: '豚ひき肉', amount: 100, unit: 'g', category: 'protein', is_optional: true },
@@ -2071,6 +2093,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'ご飯', amount: 1, unit: '膳', category: 'grain', is_optional: false },
       { id: 'i2', name: '卵', amount: 2, unit: '個', category: 'protein', is_optional: false },
@@ -2164,6 +2187,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'asian',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'ご飯', amount: 1, unit: '膳', category: 'grain', is_optional: false },
       { id: 'i2', name: '牛ひき肉', amount: 100, unit: 'g', category: 'protein', is_optional: false },
@@ -2260,6 +2284,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '鶏ひき肉', amount: 100, unit: 'g', category: 'protein', is_optional: false },
       { id: 'i2', name: '卵', amount: 2, unit: '個', category: 'protein', is_optional: false },
@@ -2367,6 +2392,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'うどん', amount: 1, unit: '玉', category: 'grain', is_optional: false },
       { id: 'i2', name: '豚バラ肉', amount: 100, unit: 'g', category: 'protein', is_optional: false },
@@ -2459,6 +2485,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'chinese',
     servings: 1,
     is_bento_friendly: false,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: '焼きそば麺', amount: 1, unit: '玉', category: 'grain', is_optional: false },
       { id: 'i2', name: '豚バラ肉', amount: 100, unit: 'g', category: 'protein', is_optional: false },
@@ -2552,6 +2579,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'ツナ缶', amount: 1, unit: '缶', category: 'protein', is_optional: false },
       { id: 'i2', name: 'マヨネーズ', amount: 2, unit: '大さじ', category: 'seasoning', is_optional: false },
@@ -2618,6 +2646,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'japanese',
     servings: 1,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'ささみ', amount: 3, unit: '本', category: 'protein', is_optional: false },
       { id: 'i2', name: '梅干し', amount: 2, unit: '個', category: 'vegetable', is_optional: false },
@@ -2711,6 +2740,7 @@ const CURATED_RECIPES: Recipe[] = [
     category: 'western',
     servings: 2,
     is_bento_friendly: true,
+    pans_required: 1,
     ingredients: [
       { id: 'i1', name: 'しめじ', amount: 1, unit: 'パック', category: 'vegetable', is_optional: false },
       { id: 'i2', name: 'エリンギ', amount: 1, unit: 'パック', category: 'vegetable', is_optional: false },

@@ -1177,6 +1177,119 @@ export const getRecipeTypeMatchDescription = (
   };
 };
 
+// ============================================
+// レシピ選択理由の生成（納得感の可視化）
+// ============================================
+
+/**
+ * レシピの選択理由を生成
+ * @param recipe 選択されたレシピ
+ * @param psychologyType ユーザーの心理タイプ
+ * @param slotType スロットタイプ（universal/type_specific/adventure）
+ * @param sharedIngredients 週間の共通食材リスト
+ * @param weekIndex 週の何日目か（0-6）
+ */
+export const generateRecipeReason = (
+  recipe: Recipe,
+  psychologyType: FoodPsychologyType,
+  slotType: 'universal' | 'type_specific' | 'adventure',
+  sharedIngredients: string[] = [],
+  weekIndex: number = 0
+): string => {
+  const typeInfo = FOOD_TYPES[psychologyType];
+  const classification = getRecipeClassification(recipe);
+  const reasonParts: string[] = [];
+
+  // === スロットタイプに基づく主理由 ===
+  if (slotType === 'universal') {
+    // 万人向けスロット
+    reasonParts.push('みんな大好き定番');
+  } else if (slotType === 'type_specific') {
+    // タイプ別スロット
+    if (classification.primaryTypes.includes(psychologyType)) {
+      reasonParts.push(`${typeInfo.name}のあなた向け`);
+    } else if (classification.secondaryTypes.includes(psychologyType)) {
+      reasonParts.push(`${typeInfo.name}と相性◎`);
+    } else {
+      // タイプスコアからキーワードを抽出
+      const score = scoreRecipeByType(recipe, psychologyType);
+      if (score.totalScore >= 30) {
+        reasonParts.push(`${typeInfo.name}におすすめ`);
+      } else {
+        reasonParts.push('バランス重視');
+      }
+    }
+  } else if (slotType === 'adventure') {
+    // 冒険スロット
+    const adventureReasons = [
+      '今週の冒険枠',
+      '新しい味にチャレンジ',
+      'いつもと違う一品',
+    ];
+    reasonParts.push(adventureReasons[weekIndex % adventureReasons.length]);
+  }
+
+  // === 副理由（共通食材の活用） ===
+  if (sharedIngredients.length > 0) {
+    // このレシピで使う共通食材を探す
+    const ingredientNames = recipe.ingredients.map(i => i.name);
+    const usedSharedIngredients = sharedIngredients.filter(shared =>
+      ingredientNames.some(name => name.includes(shared) || shared.includes(name))
+    );
+
+    if (usedSharedIngredients.length > 0) {
+      const sharedName = usedSharedIngredients[0];
+      reasonParts.push(`${sharedName}を使い回し`);
+    }
+  }
+
+  // === レシピ特性に基づく追加理由 ===
+  const tags = recipe.tags || [];
+
+  // 時短レシピ
+  if (recipe.cooking_time_minutes <= 15) {
+    if (!reasonParts.some(r => r.includes('時短'))) {
+      reasonParts.push('⏱ 時短');
+    }
+  }
+
+  // ヘルシー系
+  if (tags.some(t => t.includes('ヘルシー') || t.includes('野菜たっぷり') || t.includes('低カロリー'))) {
+    if (!reasonParts.some(r => r.includes('ヘルシー'))) {
+      reasonParts.push('ヘルシー');
+    }
+  }
+
+  // 定番・家庭料理
+  if (tags.some(t => t.includes('定番') || t.includes('家庭料理')) && slotType !== 'universal') {
+    if (!reasonParts.some(r => r.includes('定番'))) {
+      reasonParts.push('安心の定番');
+    }
+  }
+
+  // 最大2つの理由を結合
+  const selectedReasons = reasonParts.slice(0, 2);
+  return selectedReasons.join('＋');
+};
+
+/**
+ * スロットタイプから表示用ラベルを取得
+ */
+export const getSlotTypeLabel = (
+  slotType: 'universal' | 'type_specific' | 'adventure'
+): { label: string; emoji: string; color: string } => {
+  switch (slotType) {
+    case 'universal':
+      return { label: '定番', emoji: '👍', color: '#666666' };
+    case 'type_specific':
+      return { label: 'あなた向け', emoji: '⭐', color: '#D4490F' };
+    case 'adventure':
+      return { label: '冒険', emoji: '🌟', color: '#FF9800' };
+    default:
+      return { label: '', emoji: '', color: 'transparent' };
+  }
+};
+
 /**
  * 分類統計を取得（デバッグ・分析用）
  */
