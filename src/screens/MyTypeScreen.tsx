@@ -15,15 +15,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { Lock } from 'lucide-react-native';
+import { Lock, Crown, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '../types';
-import { getUserPreferences, UserPreferences, getCookingLog } from '../lib/storage';
+import { getUserPreferences, UserPreferences } from '../lib/storage';
 import {
   FoodPsychologyType,
   FOOD_TYPES,
 } from '../lib/preferenceScoring';
 import { colors, spacing, borderRadius } from '../lib/theme';
+import {
+  selectUnderstandingForMyType,
+  UnderstandingForMyType,
+  getCurrentUnderstanding,
+} from '../lib/understandingScore';
+import {
+  isUserPlus,
+  shouldShowPlusPrompt,
+  markPlusPromptShown,
+  PLUS_CONSTANTS,
+} from '../lib/plusSubscription';
+import { PlusPromptCard } from '../components/PlusPromptCard';
 
 type MyTypeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'MyType'>;
@@ -38,16 +50,7 @@ const TYPE_DESCRIPTIONS: Record<FoodPsychologyType, string> = {
   balanced: 'その日の気分で柔軟に。\n平日は効率、週末は楽しみ重視。',
 };
 
-// 理解度に応じたサブ文言
-const getUnderstandingMessage = (percentage: number): string => {
-  if (percentage < 40) {
-    return 'まだ様子見中。これから分かってくよ';
-  } else if (percentage < 70) {
-    return 'だいぶ好みが見えてきた';
-  } else {
-    return 'かなり理解できてるよ';
-  }
-};
+// 注: 理解度メッセージは understandingScore.ts の selectUnderstandingForMyType で生成
 
 // ============================================
 // メインコンポーネント
@@ -56,8 +59,12 @@ const getUnderstandingMessage = (percentage: number): string => {
 export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
   const [userPrefs, setUserPrefs] = useState<UserPreferences | null>(null);
   const [psychologyType, setPsychologyType] = useState<FoodPsychologyType | null>(null);
-  const [understandingScore, setUnderstandingScore] = useState<number>(0);
+  const [understandingData, setUnderstandingData] = useState<UnderstandingForMyType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Plus関連の状態
+  const [isPlus, setIsPlus] = useState(false);
+  const [showPlusPrompt, setShowPlusPrompt] = useState(false);
 
   // アニメーション
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -75,6 +82,10 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
       const prefs = await getUserPreferences();
       setUserPrefs(prefs);
 
+      // Plus状態を確認
+      const plusStatus = await isUserPlus();
+      setIsPlus(plusStatus);
+
       // diagnosisAnswers から psychologyType を取得
       const diagnosisAnswers = prefs?.diagnosisAnswers as { psychologyType?: FoodPsychologyType } | undefined;
       const type = diagnosisAnswers?.psychologyType;
@@ -82,18 +93,21 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
       if (type && FOOD_TYPES[type]) {
         setPsychologyType(type);
 
-        // TODO: 実際の学習データから計算する
-        // 現在は料理ログから擬似的に計算
-        const logs = await getCookingLog();
-        const cookedCount = logs.length;
-        const acceptedCount = logs.filter(l => (l.rating ?? 0) >= 4).length;
+        // 理解度システムから取得（Plus状態を渡す）
+        const understanding = await selectUnderstandingForMyType(plusStatus);
+        setUnderstandingData(understanding);
 
-        // understandingScore = clamp(20 + cookedCount*8 + acceptedCount*5, 0, 100)
-        const score = Math.min(100, Math.max(0, 20 + cookedCount * 8 + acceptedCount * 5));
-
-        // デモ用: ログがない場合は62%をデフォルトとする
+        // デモ用: イベントがなく0%の場合は62%をデフォルト表示
         // TODO: 実運用時はこのフォールバックを削除
-        setUnderstandingScore(cookedCount === 0 ? 62 : score);
+        const displayScore = understanding.percentage === 0 ? 62 : understanding.percentage;
+        const displayData: UnderstandingForMyType = understanding.percentage === 0
+          ? { ...understanding, percentage: 62, displayMessage: 'だいぶ好みが見えてきた' }
+          : understanding;
+        setUnderstandingData(displayData);
+
+        // Plus訴求表示チェック（70%到達時のみ）
+        const shouldShow = await shouldShowPlusPrompt(displayScore);
+        setShowPlusPrompt(shouldShow);
 
         // アニメーション開始
         Animated.parallel([
@@ -103,7 +117,7 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
             useNativeDriver: false,
           }),
           Animated.timing(progressAnim, {
-            toValue: (cookedCount === 0 ? 62 : score) / 100,
+            toValue: displayScore / 100,
             duration: 800,
             useNativeDriver: false,
           }),
@@ -130,6 +144,20 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // TODO: 学習許可のモーダルを表示する
     // 現時点では何もしない
+  };
+
+  // Plus訴求: 詳しく見る
+  const handlePlusLearnMore = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // TODO: Plus詳細モーダル or 購入画面に遷移
+    console.log('[Plus] Learn more pressed');
+  };
+
+  // Plus訴求: 閉じる
+  const handlePlusPromptDismiss = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowPlusPrompt(false);
+    await markPlusPromptShown();
   };
 
   // ============================================
@@ -240,17 +268,42 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
                         inputRange: [0, 1],
                         outputRange: ['0%', '100%'],
                       }),
+                      backgroundColor: understandingData?.progressColor || colors.primary,
                     },
                   ]}
                 />
               </View>
-              <Text style={styles.progressPercentage}>{understandingScore}%</Text>
+              <Text style={[
+                styles.progressPercentage,
+                { color: understandingData?.progressColor || colors.primary }
+              ]}>
+                {understandingData?.percentage || 0}%
+              </Text>
             </View>
 
             {/* サブ文言 */}
             <Text style={styles.understandingMessage}>
-              {getUnderstandingMessage(understandingScore)}
+              {understandingData?.displayMessage || '読み込み中...'}
             </Text>
+
+            {/* Free上限到達時のPlus案内 */}
+            {understandingData?.isAtFreeCap && (
+              <View style={styles.plusPromptContainer}>
+                <Crown size={16} color="#FFB800" />
+                <Text style={styles.plusPromptText}>
+                  Plusにアップグレードすると、さらに理解が深まります
+                </Text>
+              </View>
+            )}
+
+            {/* Plusユーザーで実際の値が表示値より高い場合の表示 */}
+            {understandingData?.canUnlockMore && (
+              <View style={styles.unlockHintContainer}>
+                <Text style={styles.unlockHintText}>
+                  💡 実際は{understandingData.percentageRaw}%まで上がっています
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* ===== 進化の匂わせ ===== */}
@@ -305,6 +358,16 @@ export const MyTypeScreen: React.FC<MyTypeScreenProps> = ({ navigation }) => {
               <Text style={styles.ctaButtonText}>このタイプで献立を作る</Text>
             </TouchableOpacity>
           </View>
+
+          {/* ===== Plus訴求カード（70%到達時のみ表示） ===== */}
+          {showPlusPrompt && understandingData && (
+            <PlusPromptCard
+              currentUnderstanding={understandingData.percentage}
+              onLearnMore={handlePlusLearnMore}
+              onDismiss={handlePlusPromptDismiss}
+              style={{ marginTop: 16, marginHorizontal: 0 }}
+            />
+          )}
 
           {/* 下部の余白 */}
           <View style={{ height: 40 }} />
@@ -470,6 +533,30 @@ const styles = StyleSheet.create({
   understandingMessage: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  plusPromptContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    backgroundColor: '#FFF8E1',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  plusPromptText: {
+    fontSize: 13,
+    color: '#F57C00',
+    flex: 1,
+  },
+  unlockHintContainer: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  unlockHintText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 
   // ===== 進化の匂わせ =====

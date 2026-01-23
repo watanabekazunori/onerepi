@@ -28,6 +28,22 @@ import {
   UserLearningProfile,
   getConfidenceLevel,
 } from './userTypeLearning';
+import {
+  generateRecipeSignature,
+  getCachedSignature,
+  calculateRepeatPreventionScore,
+  generateDefaultWeeklySlots,
+  createEmptySlotTracker,
+  updateSlotTracker,
+  selectFromTopCandidates,
+  logSelectedRecipeFeatures,
+  logTopCandidates,
+  SelectedRecipeInfo,
+  WeeklySlotConfig,
+  WeeklySlotTracker,
+  ScoreBreakdown,
+  PENALTY_CONSTANTS,
+} from './recipeRepeatPrevention';
 
 // 1日の献立
 export interface DayPlan {
@@ -903,12 +919,29 @@ export const getRecipesByAudience = (
 };
 
 /**
+ * 週テンプレートの制約（Plus機能）
+ */
+export interface WeekTemplateConstraints {
+  maxCookingTimeMinutes?: number;    // 最大調理時間
+  maxIngredientCount?: number;       // 最大材料数
+  maxCostLevel?: number;             // 最大コストレベル
+  preferredFlavorProfiles?: string[]; // 優先味プロファイル
+  avoidFlavorProfiles?: string[];    // 避ける味プロファイル
+  difficultyMax?: number;            // 最大難易度
+}
+
+/**
  * 心理タイプ別週間献立生成オプション
  */
 export interface PsychologyBasedPlanOptions extends WeeklyPlanOptions {
   psychologyType: FoodPsychologyType;
   confidenceLevel?: number;  // 学習信頼度（0-100）
   mixConfig?: WeeklyMixConfig;  // カスタムミックス設定
+
+  // Plus機能
+  penaltyMultiplier?: number;         // 被り防止精度 (Free: 0.8, Plus: 1.0)
+  weekTemplateConstraints?: WeekTemplateConstraints; // 週テンプレート制約
+  adventureLevel?: number;            // 冒険レベル (1-5, Plus only)
 }
 
 /**
@@ -990,19 +1023,30 @@ const scoreRecipeForPsychologyType = (
 };
 
 /**
- * 心理タイプ別 週間献立を生成
+ * 心理タイプ別 週間献立を生成（被り防止ロジック統合版）
+ * 3層構造の被り防止を適用:
+ * - Layer 1: Hard Constraint（同一レシピ/signatureKey禁止）
+ * - Layer 2: Soft Constraint（直前日・前々日との類似ペナルティ）
+ * - Layer 3: Weekly Diversity（週枠構成によるバランス）
  */
 export const generatePsychologyBasedWeeklyPlan = (
-  options: Partial<PsychologyBasedPlanOptions>
+  options: Partial<PsychologyBasedPlanOptions>,
+  enableDebugLog: boolean = false
 ): GeneratedWeeklyPlan => {
   const psychologyType = options.psychologyType || 'balanced';
   const confidenceLevel = options.confidenceLevel ?? 0;
+
+  // Plus機能のデフォルト値
+  const penaltyMultiplier = options.penaltyMultiplier ?? 1.0; // デフォルトは100%精度
+  const weekTemplateConstraints = options.weekTemplateConstraints ?? {};
 
   const opts: PsychologyBasedPlanOptions = {
     ...DEFAULT_OPTIONS,
     ...options,
     psychologyType,
     confidenceLevel,
+    penaltyMultiplier,
+    weekTemplateConstraints,
   };
 
   // ミックス設定を取得
@@ -1011,45 +1055,176 @@ export const generatePsychologyBasedWeeklyPlan = (
   // 7日分のスロットタイプを決定
   const slotTypes = determineWeeklySlots(mixConfig);
 
+  // === 被り防止用の初期化 ===
+  const slotConfig = generateDefaultWeeklySlots();
+  let slotTracker = createEmptySlotTracker();
+  const selectedRecipeInfos: SelectedRecipeInfo[] = [];
+
   const selectedRecipes: Recipe[] = [];
   const plans: DayPlan[] = [];
+
+  if (enableDebugLog) {
+    console.log('[WeeklyPlan] 生成開始 - psychologyType:', psychologyType);
+  }
 
   // 各曜日について選択
   opts.daysToGenerate.forEach((day, index) => {
     const previousRecipe = index > 0 ? selectedRecipes[index - 1] : null;
     const slotType = slotTypes[index] || 'type_specific';
 
-    // スコア計算
-    const scoredRecipes = MOCK_RECIPES.map(recipe => ({
-      recipe,
-      score: scoreRecipeForPsychologyType(
+    // === 統合スコアリング ===
+    const scoredCandidates: ScoreBreakdown[] = MOCK_RECIPES.map(recipe => {
+      // 0. 週テンプレート制約チェック（Plus機能）
+      const templateConstraints = opts.weekTemplateConstraints || {};
+      let templatePenalty = 0;
+      const templatePenaltyReasons: string[] = [];
+
+      // 調理時間制約
+      if (templateConstraints.maxCookingTimeMinutes &&
+          recipe.cooking_time_minutes > templateConstraints.maxCookingTimeMinutes) {
+        templatePenalty = -1000;
+        templatePenaltyReasons.push(`調理時間超過(${recipe.cooking_time_minutes}分 > ${templateConstraints.maxCookingTimeMinutes}分)`);
+      }
+
+      // 材料数制約
+      if (templateConstraints.maxIngredientCount &&
+          recipe.ingredients.length > templateConstraints.maxIngredientCount) {
+        templatePenalty = -1000;
+        templatePenaltyReasons.push(`材料数超過(${recipe.ingredients.length} > ${templateConstraints.maxIngredientCount})`);
+      }
+
+      // 難易度制約
+      if (templateConstraints.difficultyMax !== undefined) {
+        const difficultyMap = { 'easy': 1, 'medium': 2, 'hard': 3 };
+        const recipeDifficulty = difficultyMap[recipe.difficulty] || 2;
+        if (recipeDifficulty > templateConstraints.difficultyMax) {
+          templatePenalty = -1000;
+          templatePenaltyReasons.push(`難易度超過(${recipe.difficulty})`);
+        }
+      }
+
+      // 避ける味プロファイル
+      if (templateConstraints.avoidFlavorProfiles?.length) {
+        const signature = getCachedSignature(recipe);
+        if (templateConstraints.avoidFlavorProfiles.includes(signature.flavorProfile)) {
+          templatePenalty = -500; // 完全除外ではなく大幅減点
+          templatePenaltyReasons.push(`避けたい味(${signature.flavorProfile})`);
+        }
+      }
+
+      // テンプレート制約で除外
+      if (templatePenalty <= -1000) {
+        return {
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          baseScore: templatePenalty,
+          hardConstraintPenalty: 0,
+          softConstraintPenalty: 0,
+          diversityBonus: 0,
+          totalScore: templatePenalty,
+          details: {
+            signature: getCachedSignature(recipe),
+            penalties: templatePenaltyReasons,
+            bonuses: [],
+          },
+        };
+      }
+
+      // 1. 心理タイプ別の基本スコア
+      const psychologyScore = scoreRecipeForPsychologyType(
         recipe,
         opts,
         selectedRecipes,
         previousRecipe,
         slotType
-      ),
-    }));
+      );
+
+      // 既に除外されているレシピはスキップ
+      if (psychologyScore <= -1000) {
+        return {
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          baseScore: psychologyScore,
+          hardConstraintPenalty: 0,
+          softConstraintPenalty: 0,
+          diversityBonus: 0,
+          totalScore: psychologyScore,
+          details: {
+            signature: getCachedSignature(recipe),
+            penalties: ['基本スコアで除外'],
+            bonuses: [],
+          },
+        };
+      }
+
+      // 優先味プロファイルボーナス
+      let templateBonus = 0;
+      if (templateConstraints.preferredFlavorProfiles?.length) {
+        const signature = getCachedSignature(recipe);
+        if (templateConstraints.preferredFlavorProfiles.includes(signature.flavorProfile)) {
+          templateBonus = 20;
+        }
+      }
+
+      // 2. 被り防止スコアを計算（penaltyMultiplierを適用）
+      // ベーススコアにテンプレートボーナスとペナルティを加算
+      const adjustedBaseScore = psychologyScore + templateBonus + templatePenalty;
+
+      const repeatPreventionScore = calculateRepeatPreventionScore(
+        recipe,
+        selectedRecipeInfos,
+        slotConfig,
+        slotTracker,
+        adjustedBaseScore, // 心理タイプスコア + テンプレート調整
+        penaltyMultiplier // Free: 0.8, Plus: 1.0
+      );
+
+      // テンプレート関連の情報を追加
+      if (templateBonus > 0) {
+        repeatPreventionScore.details.bonuses.push(`週テンプレート優先味: +${templateBonus}`);
+      }
+
+      return repeatPreventionScore;
+    });
 
     // スコア順にソート
-    scoredRecipes.sort((a, b) => b.score - a.score);
+    scoredCandidates.sort((a, b) => b.totalScore - a.totalScore);
 
-    // 上位から有効なレシピを選択
-    const validRecipes = scoredRecipes.filter(sr => sr.score > 0);
+    // デバッグログ
+    if (enableDebugLog) {
+      console.log(`\n[WeeklyPlan] ${day}曜日 (index: ${index})`);
+      logTopCandidates(scoredCandidates, 5);
+    }
 
-    if (validRecipes.length > 0) {
-      // 上位8件からランダムに選択
-      const topRecipes = validRecipes.slice(0, Math.min(8, validRecipes.length));
-      const selectedIndex = Math.floor(Math.random() * topRecipes.length);
-      const selected = topRecipes[selectedIndex].recipe;
+    // 上位5件からランダム抽選
+    const selected = selectFromTopCandidates(scoredCandidates, 5);
 
-      selectedRecipes.push(selected);
+    if (selected) {
+      const selectedRecipe = MOCK_RECIPES.find(r => r.id === selected.recipeId)!;
+      const signature = getCachedSignature(selectedRecipe);
+
+      // 選択情報を記録
+      selectedRecipeInfos.push({
+        recipe: selectedRecipe,
+        signature,
+        dayIndex: index,
+      });
+
+      // 週枠トラッカーを更新
+      slotTracker = updateSlotTracker(slotTracker, selectedRecipe, signature);
+
+      selectedRecipes.push(selectedRecipe);
       plans.push({
         dayOfWeek: day,
-        recipe: selected,
-        scaleFactor: opts.servings / selected.servings,
+        recipe: selectedRecipe,
+        scaleFactor: opts.servings / selectedRecipe.servings,
         isForBento: false,
       });
+
+      // デバッグログ
+      if (enableDebugLog) {
+        logSelectedRecipeFeatures(selectedRecipe, signature, index);
+      }
     }
   });
 
@@ -1081,6 +1256,12 @@ export const generatePsychologyBasedWeeklyPlan = (
   monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   const weekStart = monday.toISOString().split('T')[0];
 
+  if (enableDebugLog) {
+    console.log('\n[WeeklyPlan] 生成完了');
+    console.log('  カテゴリバランス:', categoryBalance);
+    console.log('  共通食材:', sharedIngredients);
+  }
+
   return {
     id: `weekly-plan-psych-${Date.now()}`,
     weekStart,
@@ -1090,6 +1271,40 @@ export const generatePsychologyBasedWeeklyPlan = (
     sharedIngredients,
   };
 };
+
+/**
+ * 被り防止の強度を調整するためのプリセット
+ */
+export const REPEAT_PREVENTION_PRESETS = {
+  // 厳格モード: 被りを最小限に
+  strict: {
+    topN: 3,
+    enableHardConstraint: true,
+    enableSoftConstraint: true,
+    enableDiversity: true,
+  },
+  // バランスモード（デフォルト）
+  balanced: {
+    topN: 5,
+    enableHardConstraint: true,
+    enableSoftConstraint: true,
+    enableDiversity: true,
+  },
+  // 緩めモード: バリエーション重視
+  relaxed: {
+    topN: 8,
+    enableHardConstraint: true,
+    enableSoftConstraint: true,
+    enableDiversity: false,
+  },
+  // 最低限モード: 直近2日のみチェック
+  minimal: {
+    topN: 10,
+    enableHardConstraint: true,
+    enableSoftConstraint: true,
+    enableDiversity: false,
+  },
+} as const;
 
 /**
  * 心理タイプ別献立のサマリーを生成
